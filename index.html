@@ -210,6 +210,24 @@ body {
 /* 温控 */
 .temp-ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
 .temp-miss { background: #fef2f2; border: 1px solid #fecaca; }
+
+/* AE 安全模块 */
+.ae-card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.ae-card.sae { border-left: 4px solid var(--danger); background: #fffafa; }
+.ae-card:not(.sae) { border-left: 4px solid var(--warning); }
+.ae-grade { display: inline-block; min-width: 22px; text-align: center; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 2px 6px; color: #fff; }
+.g1 { background: #94a3b8; }
+.g2 { background: #f0a040; }
+.g3 { background: #e8843c; }
+.g4 { background: #d94a5d; }
+.g5 { background: #8b0000; }
+.ae-sae-badge { display: inline-block; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+.lab-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #fafafa; border-radius: 6px; margin-bottom: 4px; font-size: 13px; }
+.lab-abnormal { background: #fef2f2; border: 1px solid #fecaca; }
+.lab-abnormal .lab-value { color: var(--danger); font-weight: 700; }
+.lab-value { font-weight: 600; }
+.lab-ref { font-size: 11px; color: #9ca3af; }
+.lab-photo { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -229,6 +247,7 @@ body {
     <div class="tab" data-page="plans"><span class="tab-icon">计</span>计划</div>
     <div class="tab" data-page="drugs"><span class="tab-icon">药</span>用药</div>
     <div class="tab" data-page="subjects"><span class="tab-icon">人</span>受试者</div>
+    <div class="tab" data-page="safety"><span class="tab-icon">安</span>安全</div>
     <div class="tab" data-page="kb"><span class="tab-icon">知</span>知识库</div>
     <div class="tab" data-page="scan"><span class="tab-icon">扫</span>扫描</div>
     <div class="tab" data-page="tools"><span class="tab-icon">算</span>工具</div>
@@ -290,6 +309,20 @@ body {
         <button class="btn btn-secondary" onclick="renderSubjects()">刷新</button>
       </div>
       <div id="subjectList"></div>
+    </div>
+
+    <!-- ===== 安全（AE/SAE） ===== -->
+    <div class="page" id="page-safety">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn btn-primary" onclick="showAEForm()" style="flex:1;justify-content:center;">+ 新建 AE 记录</button>
+        <button class="btn btn-success" onclick="captureLabPhoto()" style="flex:1;justify-content:center;">📷 拍照化验单</button>
+      </div>
+      <input type="file" id="labPhotoInput" accept="image/*" capture="environment" style="display:none;">
+      <div id="labExtractZone"></div>
+      <h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">AE/SAE 记录</h3>
+      <div id="aeList"></div>
+      <h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">最近检查结果</h3>
+      <div id="labList"></div>
     </div>
 
     <!-- ===== 知识库 ===== -->
@@ -392,6 +425,8 @@ function defaultData() {
     drugs: [],
     subjects: [],
     temps: [],
+    aes: [],
+    labResults: [],
     tempSetting: { reminderTime: '09:00', minTemp: 2, maxTemp: 8 },
     feedback: [],
     knowledge: getDefaultKnowledge()
@@ -485,6 +520,8 @@ function load() {
   if (!d.projects || !d.projects.length) d.projects = [{ id: 'p_default', name: '默认项目' }];
   if (!d.subjects) d.subjects = [];
   if (!d.temps) d.temps = [];
+  if (!d.aes) d.aes = [];
+  if (!d.labResults) d.labResults = [];
   if (!d.tempSetting) d.tempSetting = { reminderTime: '09:00', minTemp: 2, maxTemp: 8 };
   const pid = d.projects[0].id;
   (d.plans || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
@@ -542,6 +579,7 @@ function render(page) {
     case 'plans': renderPlans(); break;
     case 'drugs': renderDrugs(); renderTemps(); break;
     case 'subjects': renderSubjects(); break;
+    case 'safety': renderSafety(); break;
     case 'kb': renderKB(); break;
     case 'scan': break;
     case 'tools': break;
@@ -1427,6 +1465,415 @@ function checkTempReminder() {
     tag: 'temp-reminder',
     requireInteraction: true
   });
+}
+
+// ==================== 安全模块（AE/SAE + 化验提取关联） ====================
+// 常用检验项目正常值参考（可在工具页更新）
+const LAB_REFS = [
+  { key: 'ALT', names: ['ALT', '丙氨酸氨基转移酶', '谷丙转氨酶'], unit: 'U/L', min: 7, max: 40, group: '肝功能' },
+  { key: 'AST', names: ['AST', '天冬氨酸氨基转移酶', '谷草转氨酶'], unit: 'U/L', min: 13, max: 35, group: '肝功能' },
+  { key: 'GGT', names: ['GGT', '谷氨酰转肽酶'], unit: 'U/L', min: 7, max: 45, group: '肝功能' },
+  { key: 'ALP', names: ['ALP', '碱性磷酸酶'], unit: 'U/L', min: 35, max: 100, group: '肝功能' },
+  { key: 'TBIL', names: ['TBIL', '总胆红素'], unit: 'μmol/L', min: 3.4, max: 20.5, group: '肝功能' },
+  { key: 'DBIL', names: ['DBIL', '直接胆红素'], unit: 'μmol/L', min: 0, max: 6.8, group: '肝功能' },
+  { key: 'Cr', names: ['Cr', 'CREA', '肌酐'], unit: 'μmol/L', min: 41, max: 97, group: '肾功能' },
+  { key: 'BUN', names: ['BUN', 'UREA', '尿素'], unit: 'mmol/L', min: 3.1, max: 8.0, group: '肾功能' },
+  { key: 'UA', names: ['UA', '尿酸'], unit: 'μmol/L', min: 155, max: 357, group: '肾功能' },
+  { key: 'WBC', names: ['WBC', '白细胞'], unit: '×10⁹/L', min: 3.5, max: 9.5, group: '血常规' },
+  { key: 'NEUT', names: ['NEUT', '中性粒细胞绝对值', '中性粒细胞'], unit: '×10⁹/L', min: 1.8, max: 6.3, group: '血常规' },
+  { key: 'Hb', names: ['HGB', 'Hb', '血红蛋白'], unit: 'g/L', min: 115, max: 150, group: '血常规' },
+  { key: 'PLT', names: ['PLT', '血小板'], unit: '×10⁹/L', min: 125, max: 350, group: '血常规' },
+  { key: 'RBC', names: ['RBC', '红细胞'], unit: '×10¹²/L', min: 3.8, max: 5.1, group: '血常规' },
+  { key: 'GLU', names: ['GLU', '血糖', '葡萄糖'], unit: 'mmol/L', min: 3.9, max: 6.1, group: '生化' },
+  { key: 'K', names: ['K', '钾'], unit: 'mmol/L', min: 3.5, max: 5.3, group: '电解质' },
+  { key: 'Na', names: ['Na', '钠'], unit: 'mmol/L', min: 137, max: 147, group: '电解质' },
+  { key: 'Ca', names: ['Ca', '钙'], unit: 'mmol/L', min: 2.11, max: 2.52, group: '电解质' },
+  { key: 'CK', names: ['CK', '肌酸激酶'], unit: 'U/L', min: 40, max: 200, group: '心肌酶' },
+  { key: 'CKMB', names: ['CK-MB', 'CKMB'], unit: 'U/L', min: 0, max: 24, group: '心肌酶' },
+  { key: 'cTnI', names: ['cTnI', '肌钙蛋白'], unit: 'ng/mL', min: 0, max: 0.04, group: '心肌酶' },
+  { key: 'TC', names: ['TC', '总胆固醇'], unit: 'mmol/L', min: 0, max: 5.2, group: '血脂' },
+  { key: 'TG', names: ['TG', '甘油三酯'], unit: 'mmol/L', min: 0, max: 1.7, group: '血脂' },
+  { key: 'LDL', names: ['LDL', '低密度脂蛋白'], unit: 'mmol/L', min: 0, max: 3.4, group: '血脂' },
+  { key: 'PT', names: ['PT', '凝血酶原时间'], unit: 's', min: 9.6, max: 12.8, group: '凝血' },
+  { key: 'APTT', names: ['APTT', '活化部分凝血活酶时间'], unit: 's', min: 25, max: 37, group: '凝血' },
+  { key: 'INR', names: ['INR'], unit: '', min: 0.8, max: 1.2, group: '凝血' },
+  { key: 'CRP', names: ['CRP', 'C反应蛋白'], unit: 'mg/L', min: 0, max: 10, group: '炎症' },
+  { key: 'TSH', names: ['TSH', '促甲状腺激素'], unit: 'mIU/L', min: 0.27, max: 4.2, group: '甲状腺' }
+];
+
+// AE 名称 → 相关检验项目映射（用于自动关联）
+const AE_LAB_MAP = [
+  { pattern: /肝|ALT|AST|GGT|黄疸|胆红素|转氨酶/i, labs: ['ALT', 'AST', 'GGT', 'ALP', 'TBIL', 'DBIL'], label: '肝功能相关' },
+  { pattern: /肾|肌酐|尿素|尿酸|尿毒/i, labs: ['Cr', 'BUN', 'UA'], label: '肾功能相关' },
+  { pattern: /贫血|血红蛋白|Hb/i, labs: ['Hb', 'RBC'], label: '贫血相关' },
+  { pattern: /血小板|出血点|瘀斑/i, labs: ['PLT', 'PT', 'APTT', 'INR'], label: '出血/凝血相关' },
+  { pattern: /白细胞|中性粒|粒缺|骨髓抑制|感染|发热|炎症/i, labs: ['WBC', 'NEUT', 'CRP'], label: '血象/感染相关' },
+  { pattern: /血糖|高血糖|低血糖|糖尿病/i, labs: ['GLU'], label: '血糖相关' },
+  { pattern: /钾|钠|钙|电解质/i, labs: ['K', 'Na', 'Ca'], label: '电解质相关' },
+  { pattern: /心肌|心脏|胸痛|心肌炎|肌钙/i, labs: ['CK', 'CKMB', 'cTnI'], label: '心肌相关' },
+  { pattern: /血脂|胆固醇|甘油三酯/i, labs: ['TC', 'TG', 'LDL'], label: '血脂相关' },
+  { pattern: /甲状腺|TSH/i, labs: ['TSH'], label: '甲状腺相关' }
+];
+
+function checkAbnormal(key, value) {
+  const ref = LAB_REFS.find(r => r.key === key);
+  if (!ref) return { abnormal: false, ref };
+  const v = parseFloat(value);
+  if (isNaN(v)) return { abnormal: false, ref };
+  return { abnormal: v < ref.min || v > ref.max, ref };
+}
+
+// AE 分级选项
+const AE_GRADES = [
+  { g: 1, label: '1级 轻度' },
+  { g: 2, label: '2级 中度' },
+  { g: 3, label: '3级 重度' },
+  { g: 4, label: '4级 危及生命' },
+  { g: 5, label: '5级 死亡' }
+];
+const AE_CAUSALITY = ['肯定有关', '很可能有关', '可能有关', '可能无关', '无关', '无法评价'];
+const AE_OUTCOMES = ['已恢复', '恢复中', '未恢复', '恢复伴后遗症', '死亡', '未知'];
+
+function renderSafety() {
+  renderAEList();
+  renderLabList();
+}
+
+function renderAEList() {
+  const div = document.getElementById('aeList');
+  const aes = data.aes.filter(a => a.projectId === currentProjectId).sort((a,b) => (b.onsetDate || '').localeCompare(a.onsetDate || ''));
+  if (!aes.length) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">🛡</div><p>暂无 AE 记录</p><p style="font-size:12px;margin-top:4px;">发生不良事件时及时记录，SAE 需 24 小时内报告</p></div>';
+    return;
+  }
+  div.innerHTML = aes.map(a => `
+    <div class="ae-card ${a.isSAE ? 'sae' : ''}" onclick="showAEDetail('${a.id}')" style="cursor:pointer;">
+      <div class="card-header">
+        <span class="card-title">${escHtml(a.subjectName || '未指定受试者')} · ${escHtml(a.aeName)}${a.isSAE ? '<span class="ae-sae-badge">SAE</span>' : ''}</span>
+        <span class="ae-grade g${a.grade}">G${a.grade}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+        发生：${escHtml(a.onsetDate || '-')} ｜ 转归：${escHtml(a.outcome || '-')} ｜ 相关性：${escHtml(a.causality || '-')}
+      </div>
+      ${a.photos && a.photos.length ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">📎 ${a.photos.length} 张照片</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderLabList() {
+  const div = document.getElementById('labList');
+  const labs = data.labResults.filter(l => l.projectId === currentProjectId).sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  if (!labs.length) {
+    div.innerHTML = '<div class="empty-state"><p style="font-size:12px;">暂无检查结果记录，拍照化验单自动提取</p></div>';
+    return;
+  }
+  div.innerHTML = labs.slice(0, 8).map(l => `
+    <div class="card" style="padding:10px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+        <span><strong style="color:var(--text);">${escHtml(l.subjectName)}</strong> ${escHtml(l.date)}</span>
+        <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLab('${l.id}')">删除</button>
+      </div>
+      ${(l.values || []).map(v => {
+        const { abnormal, ref } = checkAbnormal(v.key, v.value);
+        return `<div class="lab-row ${abnormal ? 'lab-abnormal' : ''}">
+          <span>${escHtml(v.key)}</span>
+          <span class="lab-value">${escHtml(v.value)}${ref ? ' ' + ref.unit : ''}${abnormal ? ' ⚠' : ''}</span>
+          <span class="lab-ref">${ref ? ref.min + '~' + ref.max : ''}</span>
+        </div>`;
+      }).join('')}
+      ${l.photo ? `<img src="${l.photo}" class="lab-photo" onclick="event.stopPropagation();window.open(this.src)">` : ''}
+    </div>
+  `).join('');
+}
+
+function deleteLab(id) {
+  data.labResults = data.labResults.filter(l => l.id !== id);
+  save(); renderLabList();
+}
+
+// 新建 AE 记录
+function showAEForm(editId) {
+  const isEdit = !!editId;
+  const a = isEdit ? data.aes.find(x => x.id === editId) : null;
+  const d = a || { subjectId: '', aeName: '', grade: 1, isSAE: false, onsetDate: today(), causality: '很可能有关', outcome: '恢复中', treatment: '', note: '' };
+  const subs = data.subjects.filter(s => s.projectId === currentProjectId);
+  const subOpts = subs.map(s => `<option value="${s.id}" ${s.id === d.subjectId ? 'selected' : ''}>${escHtml(s.name)}${s.screeningNo ? '（' + escHtml(s.screeningNo) + '）' : ''}</option>`).join('');
+
+  showModal(isEdit ? '编辑 AE 记录' : '新建 AE 记录', `
+    <div class="form-group"><label>受试者</label>
+      <select id="fAeSub">${subOpts || '<option value="">（当前项目暂无受试者）</option>'}</select>
+    </div>
+    <div class="form-group"><label>AE 名称 *</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="fAeName" value="${escHtml(d.aeName)}" placeholder="例：转氨酶升高 / 中性粒细胞减少" style="flex:1;">
+        <button type="button" class="btn btn-voice" onclick="voiceFill('fAeName', this)">🎙</button>
+      </div>
+    </div>
+    <div class="form-group"><label>是否 SAE</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+        <input type="checkbox" id="fAeSae" ${d.isSAE ? 'checked' : ''}> 严重不良事件（死亡/危及生命/住院等）
+      </label>
+    </div>
+    <div class="form-group"><label>CTCAE 分级</label>
+      <select id="fAeGrade">${AE_GRADES.map(g => `<option value="${g.g}" ${g.g === d.grade ? 'selected' : ''}>${g.label}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label>发生日期</label><input type="date" id="fAeOnset" value="${d.onsetDate}"></div>
+    <div class="form-group"><label>与研究药物相关性</label>
+      <select id="fAeCau">${AE_CAUSALITY.map(c => `<option ${c === d.causality ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label>转归</label>
+      <select id="fAeOut">${AE_OUTCOMES.map(o => `<option ${o === d.outcome ? 'selected' : ''}>${o}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label>处理措施</label><input type="text" id="fAeTreat" value="${escHtml(d.treatment)}" placeholder="如：停药观察 / 对症处理"></div>
+    <div class="form-group"><label>备注</label><textarea id="fAeNote" rows="2">${escHtml(d.note)}</textarea></div>
+    <div class="form-group"><label>照片附件（AE/SAE 记录原件）</label>
+      <button type="button" class="btn btn-secondary" onclick="addAEPhoto()" style="width:100%;justify-content:center;">📷 拍照 / 选择照片</button>
+      <div id="fAePhotos" style="margin-top:6px;">
+        ${(d.photos || []).map(p => `<img src="${p}" class="lab-photo" style="max-width:45%;">`).join('')}
+      </div>
+    </div>
+    <input type="file" id="aePhotoInput" accept="image/*" capture="environment" multiple style="display:none;">
+  `, () => {
+    const name = document.getElementById('fAeName').value.trim();
+    if (!name) { alert('请输入 AE 名称'); return; }
+    const subId = document.getElementById('fAeSub').value;
+    const sub = data.subjects.find(s => s.id === subId);
+    const obj = {
+      subjectId: subId,
+      subjectName: sub ? sub.name : '',
+      aeName: name,
+      isSAE: document.getElementById('fAeSae').checked,
+      grade: parseInt(document.getElementById('fAeGrade').value),
+      onsetDate: document.getElementById('fAeOnset').value,
+      causality: document.getElementById('fAeCau').value,
+      outcome: document.getElementById('fAeOut').value,
+      treatment: document.getElementById('fAeTreat').value.trim(),
+      note: document.getElementById('fAeNote').value.trim(),
+      photos: tempAEPhotos.slice()
+    };
+    tempAEPhotos = [];
+    if (obj.isSAE) toast('⚠ 提醒：SAE 须在获知后 24 小时内报告申办方！');
+    if (isEdit) { Object.assign(a, obj); }
+    else { data.aes.push({ id: genId(), projectId: currentProjectId, createdAt: nowDateTime(), ...obj }); }
+    save(); closeModal(); renderAEList();
+  });
+}
+
+// AE 照片临时存储
+let tempAEPhotos = [];
+function addAEPhoto() {
+  const input = document.getElementById('aePhotoInput');
+  if (!input) return;
+  input.onchange = (e) => {
+    Array.from(e.target.files || []).forEach(f => {
+      const r = new FileReader();
+      r.onload = () => {
+        tempAEPhotos.push(r.result);
+        const div = document.getElementById('fAePhotos');
+        if (div) div.innerHTML = tempAEPhotos.map(p => `<img src="${p}" class="lab-photo" style="max-width:45%;">`).join('');
+      };
+      r.readAsDataURL(f);
+    });
+  };
+  input.click();
+}
+
+// AE 详情：自动关联该受试者最新检查结果
+function showAEDetail(id) {
+  const a = data.aes.find(x => x.id === id);
+  if (!a) return;
+  // 找 AE 类型映射的相关检验
+  let map = AE_LAB_MAP.find(m => m.pattern.test(a.aeName));
+  const relatedKeys = map ? map.labs : [];
+  // 该受试者的检查结果（最新在前）
+  const labs = data.labResults.filter(l => l.subjectId === a.subjectId && l.projectId === currentProjectId)
+    .sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+
+  let labHtml = '';
+  if (!labs.length) {
+    labHtml = '<div style="font-size:12px;color:#9ca3af;">该受试者暂无检查结果记录</div>';
+  } else {
+    const relLabs = relatedKeys.length
+      ? labs.filter(l => (l.values || []).some(v => relatedKeys.includes(v.key)))
+      : labs;
+    if (!relLabs.length) {
+      labHtml = '<div style="font-size:12px;color:#9ca3af;">无' + (map ? map.label : '') + '相关检查结果，下方为全部结果</div>';
+      labs.forEach(l => { labHtml += renderLabCard(l, []); });
+    } else {
+      if (map) labHtml += `<div style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:6px;">关联：${map.label}（按 AE 类型自动筛选）</div>`;
+      relLabs.slice(0, 5).forEach(l => { labHtml += renderLabCard(l, relatedKeys); });
+    }
+  }
+
+  showModal('AE 详情', `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:700;">${escHtml(a.subjectName)} · ${escHtml(a.aeName)} ${a.isSAE ? '<span class="ae-sae-badge">SAE</span>' : ''}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.8;">
+        分级：<span class="ae-grade g${a.grade}" style="margin:0 4px 0 0;">G${a.grade}</span> ｜ 发生：${escHtml(a.onsetDate)}<br>
+        相关性：${escHtml(a.causality)} ｜ 转归：${escHtml(a.outcome)}<br>
+        ${a.treatment ? '处理：' + escHtml(a.treatment) + '<br>' : ''}
+        ${a.note ? '备注：' + escHtml(a.note) : ''}
+      </div>
+    </div>
+    ${a.photos && a.photos.length ? `<div style="margin-bottom:12px;">${a.photos.map(p => `<img src="${p}" class="lab-photo">`).join('')}</div>` : ''}
+    <div style="border-top:1px solid var(--border);padding-top:12px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">相关检查结果（最新在前）</div>
+      ${labHtml}
+    </div>
+    <div class="form-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" id="aeEditBtn" style="flex:1;">编辑</button>
+    </div>
+  `, () => closeModal());
+  const editBtn = document.getElementById('aeEditBtn');
+  if (editBtn) editBtn.onclick = () => { closeModal(); showAEForm(id); };
+  const saveBtn = document.getElementById('modalSave');
+  if (saveBtn) saveBtn.style.display = 'none';
+  const cancelBtn = document.getElementById('modalCancel');
+  if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+function renderLabCard(l, filterKeys) {
+  const values = (l.values || []).filter(v => !filterKeys.length || filterKeys.includes(v.key));
+  return `<div class="card" style="padding:10px;margin-bottom:8px;">
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">${escHtml(l.date)}</div>
+    ${values.map(v => {
+      const { abnormal, ref } = checkAbnormal(v.key, v.value);
+      return `<div class="lab-row ${abnormal ? 'lab-abnormal' : ''}">
+        <span>${escHtml(v.key)}</span>
+        <span class="lab-value">${escHtml(v.value)}${ref ? ' ' + ref.unit : ''}${abnormal ? ' ⚠' : ''}</span>
+        <span class="lab-ref">${ref ? ref.min + '~' + ref.max : ''}</span>
+      </div>`;
+    }).join('')}
+    ${l.photo ? `<img src="${l.photo}" class="lab-photo">` : ''}
+  </div>`;
+}
+
+// 拍照化验单 → OCR 提取检验值
+let labExtractPending = null;
+
+function captureLabPhoto() {
+  document.getElementById('labPhotoInput').click();
+}
+
+document.getElementById('labPhotoInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (!files.length) return;
+  toast('正在识别化验单...');
+  const zone = document.getElementById('labExtractZone');
+  zone.innerHTML = '<div class="card" style="text-align:center;padding:20px;">⏳ OCR 识别中，请稍候（约10-30秒）...</div>';
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        // 1. 图像增强
+        const { dataUrl } = detectCropEnhance(img);
+        // 2. OCR
+        let worker = window._ocrWorker;
+        if (!worker && typeof Tesseract !== 'undefined') {
+          worker = await Tesseract.createWorker('chi_sim', 1, {
+            workerPath: 'lib/worker.min.js',
+            corePath: 'lib/tesseract-core.wasm.js',
+            langPath: 'lib'
+          });
+          window._ocrWorker = worker;
+        }
+        if (!worker) { zone.innerHTML = '<div class="card">OCR 组件未加载，请稍后重试</div>'; return; }
+        const { data: ocrData } = await worker.recognize(dataUrl);
+        // 3. 提取检验值
+        const extracted = extractLabValues(ocrData.text);
+        labExtractPending = { photo: dataUrl, values: extracted };
+        renderLabExtract(extracted, dataUrl);
+      } catch (err) {
+        zone.innerHTML = '<div class="card">识别失败：' + escHtml(err.message || '') + '</div>';
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(files[0]);
+});
+
+function extractLabValues(text) {
+  const results = [];
+  const seen = new Set();
+  for (const ref of LAB_REFS) {
+    if (seen.has(ref.key)) continue;
+    let found = null;
+    for (const name of ref.names) {
+      // 匹配 "ALT 45" 或 "丙氨酸氨基转移酶 45" 或 "ALT: 45.3"
+      const re = new RegExp(name + '[^\\d]{0,8}(\\d{1,4}(?:\\.\\d{1,2})?)', 'i');
+      const m = text.match(re);
+      if (m) { found = parseFloat(m[1]); break; }
+    }
+    if (found !== null && found >= 0) {
+      // 排除明显误识别（如单位数字）
+      if (found === 0 && ref.key !== 'DBIL' && ref.key !== 'cTnI') continue;
+      results.push({ key: ref.key, value: String(found), abnormal: found < ref.min || found > ref.max, ref });
+      seen.add(ref.key);
+    }
+  }
+  return results;
+}
+
+function renderLabExtract(extracted, photo) {
+  const zone = document.getElementById('labExtractZone');
+  const subs = data.subjects.filter(s => s.projectId === currentProjectId);
+  const abnormalCount = extracted.filter(v => v.abnormal).length;
+  zone.innerHTML = `
+    <div class="card" style="border-left:4px solid var(--primary);">
+      <div class="card-header">
+        <span class="card-title">识别到 ${extracted.length} 项检验值${abnormalCount ? '（' + abnormalCount + ' 项异常 ⚠）' : ''}</span>
+      </div>
+      <img src="${photo}" class="lab-photo" style="max-height:120px;object-fit:contain;">
+      ${extracted.length ? extracted.map(v => `
+        <div class="lab-row ${v.abnormal ? 'lab-abnormal' : ''}">
+          <span>${escHtml(v.key)} ${escHtml(v.ref.group)}</span>
+          <span class="lab-value">${escHtml(v.value)} ${v.ref.unit}${v.abnormal ? ' ⚠' : ''}</span>
+          <span class="lab-ref">${v.ref.min}~${v.ref.max}</span>
+        </div>`).join('') : '<div style="font-size:12px;color:#9ca3af;margin:8px 0;">未识别到标准检验项目，可手动录入</div>'}
+      <div class="form-group" style="margin-top:10px;"><label>归属受试者</label>
+        <select id="fLabSub">${subs.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('') || '<option value="">（先创建受试者）</option>'}</select>
+      </div>
+      <div class="form-group"><label>检查日期</label><input type="date" id="fLabDate" value="${today()}"></div>
+      <div class="form-group"><label>补充/修正数值（格式：项目名 数值，一行一个）</label>
+        <textarea id="fLabExtra" rows="2" placeholder="例：PCT 0.05&#10;D-二聚体 0.3"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="fLabCancel" style="flex:1;">取消</button>
+        <button class="btn btn-primary" id="fLabSave" style="flex:1;">保存检查结果</button>
+      </div>
+    </div>`;
+  document.getElementById('fLabCancel').onclick = () => { zone.innerHTML = ''; };
+  document.getElementById('fLabSave').onclick = () => {
+    const subId = document.getElementById('fLabSub').value;
+    if (!subId) { alert('请先创建受试者'); return; }
+    const sub = data.subjects.find(s => s.id === subId);
+    const values = extracted.map(v => ({ key: v.key, value: v.value }));
+    // 手动补充
+    const extraText = document.getElementById('fLabExtra').value.trim();
+    if (extraText) {
+      extraText.split('\n').forEach(line => {
+        const m = line.match(/^([^\d\s]{1,20})\s+(\d+(?:\.\d+)?)/);
+        if (m) values.push({ key: m[1].trim(), value: m[2] });
+      });
+    }
+    data.labResults.push({
+      id: genId(),
+      projectId: currentProjectId,
+      subjectId: subId,
+      subjectName: sub ? sub.name : '',
+      date: document.getElementById('fLabDate').value,
+      values,
+      photo,
+      source: 'ocr'
+    });
+    save();
+    zone.innerHTML = '';
+    renderLabList();
+    toast('检查结果已保存，可在 AE 详情中自动关联');
+  };
 }
 
 // ==================== 扫描模块 ====================
