@@ -268,7 +268,8 @@ body {
         <div class="quick-btn" onclick="quickAddPlan('访视')"><div class="icon">👥</div><div class="label">快速记访视</div></div>
         <div class="quick-btn" onclick="quickAddPlan('拿药')"><div class="icon">💊</div><div class="label">快速记拿药</div></div>
         <div class="quick-btn" onclick="quickAddPlan('用药')"><div class="icon">⏱</div><div class="label">记录用药时间</div></div>
-        <div class="quick-btn" onclick="quickFeedback()"><div class="icon">🎙</div><div class="label">语音记问题</div></div>
+        <div class="quick-btn" onclick="voiceQuickPlan()"><div class="icon">🎙</div><div class="label">语音记计划</div></div>
+        <div class="quick-btn" onclick="quickFeedback()"><div class="icon">💬</div><div class="label">记问题</div></div>
       </div>
       <h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">今日时间线</h3>
       <div id="todayTimeline"></div>
@@ -276,6 +277,9 @@ body {
 
     <!-- ===== 计划 ===== -->
     <div class="page" id="page-plans">
+      <div style="margin-bottom:12px;">
+        <button class="btn btn-primary" onclick="voiceQuickPlan()" style="width:100%;justify-content:center;padding:14px;font-size:15px;">🎙 语音快速记录计划</button>
+      </div>
       <div class="filter-row">
         <span class="filter-chip active" data-filter="all">全部</span>
         <span class="filter-chip" data-filter="visit">访视</span>
@@ -938,10 +942,11 @@ function renderKBList(cat, query) {
 }
 
 function startVoiceSearch() {
+  const btn = document.getElementById('kbVoiceBtn');
   startVoice((text) => {
     document.getElementById('kbSearch').value = text;
     renderKBList(document.querySelector('#kbCats .filter-chip.active')?.dataset.cat || '全部', text);
-  });
+  }, btn);
 }
 
 // ==================== 计算工具 ====================
@@ -1052,76 +1057,127 @@ function quickFeedback() {
 
 // ==================== 语音识别 ====================
 let recognition = null;
-let activeVoiceTarget = null;
-let activeVoiceBtn = null;
+let voiceCallback = null;
+let voiceFinalText = '';
 
-function initRecognition() {
-  if (recognition) return recognition;
+function isIOS() { return /iPhone|iPad|iPod/i.test(navigator.userAgent); }
+
+function getRecognition() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
+  if (recognition) return recognition;
   recognition = new SR();
   recognition.lang = 'zh-CN';
-  recognition.continuous = true;
-  recognition.interimResults = true;
+  // iOS 只支持单次识别（continuous 会导致结果不返回）
+  recognition.continuous = false;
+  recognition.interimResults = !isIOS();
+  recognition.maxAlternatives = 1;
+
   recognition.onresult = (e) => {
-    let finalText = '', interim = '';
+    let text = '';
     for (let i = 0; i < e.results.length; i++) {
-      if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
-      else interim += e.results[i][0].transcript;
+      text += e.results[i][0].transcript;
     }
-    if (activeVoiceTarget) {
-      activeVoiceTarget.value = (finalText || interim).trim();
-    }
+    voiceFinalText = text.trim();
+    if (voiceCallback) voiceCallback(voiceFinalText);
   };
   recognition.onend = () => {
-    if (activeVoiceBtn) {
-      activeVoiceBtn.classList.remove('recording');
-      activeVoiceBtn.textContent = '🎙';
-    }
     document.getElementById('recordingBar').classList.remove('active');
-    activeVoiceTarget = null;
-    activeVoiceBtn = null;
+    document.querySelectorAll('.btn-voice.recording').forEach(b => {
+      b.classList.remove('recording');
+      b.textContent = '🎙';
+    });
+    // 结束时把最终结果写入（iOS 有时只触发一次 onresult）
+    if (voiceFinalText && voiceCallback) voiceCallback(voiceFinalText);
+    voiceCallback = null;
   };
   recognition.onerror = (e) => {
-    toast('语音识别失败：' + e.error);
+    document.getElementById('recordingBar').classList.remove('active');
+    document.querySelectorAll('.btn-voice.recording').forEach(b => {
+      b.classList.remove('recording');
+      b.textContent = '🎙';
+    });
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      toast('请允许麦克风权限');
+    } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+      toast('语音识别失败：' + e.error);
+    }
+    voiceCallback = null;
   };
   return recognition;
 }
 
-function startVoice(callback) {
-  const rec = initRecognition();
-  if (!rec) { toast('当前浏览器不支持语音识别，请用 Chrome/Edge'); return; }
-  if (activeVoiceTarget) { // 正在录音，停止
-    rec.stop();
+function startVoice(callback, btn) {
+  const rec = getRecognition();
+  if (!rec) {
+    toast('当前浏览器不支持语音识别，请用输入框键盘上的麦克风按钮（语音听写）');
     return;
   }
-  // 回调模式
-  rec.onresult = (e) => {
-    let text = '';
-    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
-    callback(text.trim());
-  };
-  rec.onend = () => { document.getElementById('recordingBar').classList.remove('active'); };
+  voiceFinalText = '';
+  voiceCallback = callback;
+  if (btn) {
+    btn.classList.add('recording');
+    btn.textContent = '● 停止';
+  }
   document.getElementById('recordingBar').classList.add('active');
-  try { rec.start(); } catch(e) {}
+  try { rec.start(); } catch(e) {
+    toast('语音启动失败，请重试');
+  }
 }
 
 function voiceFill(inputId, btn) {
-  const rec = initRecognition();
-  if (!rec) { toast('当前浏览器不支持语音识别，请用 Chrome/Edge'); return; }
-  if (activeVoiceTarget) { rec.stop(); return; }
   const input = document.getElementById(inputId);
-  activeVoiceTarget = input;
-  activeVoiceBtn = btn;
-  btn.classList.add('recording');
-  btn.textContent = '● 停止';
-  document.getElementById('recordingBar').classList.add('active');
-  rec.onresult = (e) => {
-    let text = '';
-    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
-    input.value = text.trim();
+  if (!input) return;
+  // 已录音则停止
+  if (btn && btn.classList.contains('recording')) {
+    const rec = getRecognition();
+    if (rec) { try { rec.stop(); } catch(e) {} }
+    return;
+  }
+  startVoice((text) => { if (text) input.value = text; }, btn);
+}
+
+// 语音快速新建计划：边说边填标题和内容
+function voiceQuickPlan() {
+  showModal('🎙 语音快速记录', `
+    <div style="text-align:center;padding:20px 0;">
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">
+        点按钮开始说话，说出任务内容，说完自动填入<br>
+        <span style="font-size:12px;">例：「明天下午三点 给三号床换药」</span>
+      </div>
+      <button type="button" class="btn btn-voice" id="vqpBtn" style="padding:20px 40px;font-size:22px;border-radius:40px;">🎙 点击说话</button>
+      <div style="margin-top:16px;text-align:left;">
+        <label style="font-size:12px;color:var(--text-secondary);">识别结果（可手动修改）</label>
+        <textarea id="vqpText" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;margin-top:6px;" placeholder="语音内容会出现在这里"></textarea>
+      </div>
+    </div>
+  `, () => {
+    const text = document.getElementById('vqpText').value.trim();
+    if (!text) { alert('请先语音输入或手动填写内容'); return; }
+    // 自动解析时间（如"下午三点""3点"）
+    const timeMatch = text.match(/(上午|下午|晚上)?\s*(\d{1,2})\s*[点时]/);
+    let t = nowTime();
+    let date = today();
+    if (timeMatch) {
+      let h = parseInt(timeMatch[2]);
+      const period = timeMatch[1];
+      if (period === '下午' && h < 12) h += 12;
+      if (period === '晚上' && h < 12) h += 12;
+      t = String(h).padStart(2, '0') + ':00';
+    }
+    // 明天/后天
+    if (/明天/.test(text)) { const d = new Date(); d.setDate(d.getDate()+1); date = fmtDate(d); }
+    if (/后天/.test(text)) { const d = new Date(); d.setDate(d.getDate()+2); date = fmtDate(d); }
+    data.plans.push({ id: genId(), done: false, projectId: currentProjectId, type: 'other', date, time: t, title: text, content: '' });
+    save(); closeModal(); render(currentPage());
+    toast('已记录：' + text);
+  });
+  document.getElementById('vqpBtn').onclick = function() {
+    startVoice((text) => {
+      const ta = document.getElementById('vqpText');
+      if (ta && text) ta.value = text;
+    }, this);
   };
-  try { rec.start(); } catch(e) {}
 }
 
 // ==================== 模态框 ====================
