@@ -348,10 +348,14 @@ body {
     <!-- ===== 安全（AE/SAE） ===== -->
     <div class="page" id="page-safety">
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button class="btn btn-primary" onclick="showAEForm()" style="flex:1;justify-content:center;">+ 新建 AE 记录</button>
-        <button class="btn btn-success" onclick="captureLabPhoto()" style="flex:1;justify-content:center;">📷 拍照化验单</button>
+        <button class="btn btn-primary" onclick="showAEForm()" style="flex:1;justify-content:center;">+ 新建 AE</button>
+        <button class="btn btn-success" onclick="captureLabPhoto()" style="flex:1;justify-content:center;">📷 拍化验单</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <button class="btn btn-secondary" onclick="captureAEPhoto()" style="width:100%;justify-content:center;">📷 拍 EDC 的 AE 记录，自动识别录入</button>
       </div>
       <input type="file" id="labPhotoInput" accept="image/*" capture="environment" style="display:none;">
+      <input type="file" id="aePhotoInput2" accept="image/*" capture="environment" style="display:none;">
       <div id="labExtractZone"></div>
       <h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">AE/SAE 记录</h3>
       <div id="aeList"></div>
@@ -556,7 +560,25 @@ function getDefaultKnowledge() {
     { cat: '监查文档', term: 'ISF', en: 'Investigator Site File', def: '研究者文件夹。中心保存的试验文件，包括伦理批件、授权表、培训记录等。' },
     { cat: '监查文档', term: '授权分工表', en: 'Delegation Log', def: 'PI 授权团队成员职责的正式记录，CRC 只能执行授权范围内的任务。' },
     { cat: '监查文档', term: '稽查', en: 'Audit', def: '独立的系统性检查，评估试验执行是否符合方案、GCP 和法规要求。' },
-    { cat: '监查文档', term: '视察', en: 'Inspection', def: '药品监管部门（如 NMPA）对中心和申办方进行的官方检查。' }
+    { cat: '监查文档', term: '视察', en: 'Inspection', def: '药品监管部门（如 NMPA）对中心和申办方进行的官方检查。' },
+
+    // CTCAE 分级
+    { cat: 'CTCAE分级', term: 'CTCAE', en: 'Common Terminology Criteria for Adverse Events', def: '不良事件通用术语标准（v5.0）。1级=轻度，2级=中度，3级=重度，4级=危及生命，5级=死亡。' },
+    { cat: 'CTCAE分级', term: '贫血（血红蛋白降低）', en: 'Anemia', def: 'Hb g/L：1级 <正常下限~100，2级 80~100，3级 65~80（需输血），4级 <65（危及生命）。' },
+    { cat: 'CTCAE分级', term: '中性粒细胞减少', en: 'Neutropenia', def: '中性粒细胞绝对值 ×10⁹/L：1级 1.0~1.5，2级 0.5~1.0，3级 0.5以下（需预防感染），4级 <0.5伴发热为粒缺。' },
+    { cat: 'CTCAE分级', term: '白细胞减少', en: 'Leukopenia', def: 'WBC ×10⁹/L：1级 2.0~3.0，2级 1.0~2.0，3级 1.0以下，4级 <1.0伴感染风险。' },
+    { cat: 'CTCAE分级', term: '血小板减少', en: 'Thrombocytopenia', def: 'PLT ×10⁹/L：1级 50~75，2级 25~50，3级 25以下（有出血风险），4级 <25伴自发性出血。' },
+    { cat: 'CTCAE分级', term: 'ALT升高', en: 'ALT increased', def: 'ALT：1级 >正常上限~3倍，2级 >3~5倍，3级 >5~20倍，4级 >20倍。' },
+    { cat: 'CTCAE分级', term: 'AST升高', en: 'AST increased', def: 'AST：1级 >正常上限~3倍，2级 >3~5倍，3级 >5~20倍，4级 >20倍。' },
+    { cat: 'CTCAE分级', term: '肌酐升高', en: 'Creatinine increased', def: '肌酐：1级 >1~1.5倍正常上限，2级 >1.5~3倍，3级 >3~6倍，4级 >6倍。' },
+    { cat: 'CTCAE分级', term: '高血糖', en: 'Hyperglycemia', def: '空腹血糖 mmol/L：1级 >正常上限~8.9，2级 8.9~13.9，3级 13.9~27.8（需干预），4级 >27.8（危及生命）。' },
+    { cat: 'CTCAE分级', term: '高钾血症', en: 'Hyperkalemia', def: '血钾 mmol/L：1级 >正常上限~5.5，2级 5.5~6.0，3级 6.0~7.0（需紧急处理），4级 >7.0（危及生命）。' },
+    { cat: 'CTCAE分级', term: '低钠血症', en: 'Hyponatremia', def: '血钠 mmol/L：1级 130~135，2级 125~130，3级 120~125（有症状），4级 <120（危及生命）。' },
+    { cat: 'CTCAE分级', term: '腹泻', en: 'Diarrhea', def: '较基线每日排便次数：1级 <4次，2级 4~6次，3级 ≥7次（失禁/需住院），4级 危及生命，5级 死亡。' },
+    { cat: 'CTCAE分级', term: '呕吐', en: 'Vomiting', def: '24小时内：1级 1~2次，2级 3~5次，3级 ≥6次（需鼻饲/肠外营养），4级 危及生命。' },
+    { cat: 'CTCAE分级', term: '发热', en: 'Fever', def: '体温：1级 38~39℃，2级 >39~40℃，3级 >40℃持续≤24h，4级 >40℃持续>24h。' },
+    { cat: 'CTCAE分级', term: '高血压', en: 'Hypertension', def: 'mmHg：1级 收缩压120~139/舒张80~89，2级 140~159/90~99，3级 ≥160/≥100（需药物），4级 危及生命。' },
+    { cat: 'CTCAE分级', term: '皮疹', en: 'Rash', def: '1级 覆盖<10%体表面积，2级 10~30%，3级 >30%伴瘙痒/破溃，4级 危及生命（如Stevens-Johnson）。' }
   ];
 }
 
@@ -575,6 +597,13 @@ function load() {
   if (!d.aes) d.aes = [];
   if (!d.labResults) d.labResults = [];
   if (!d.tempSetting) d.tempSetting = { reminderTime: '09:00', minTemp: 2, maxTemp: 8 };
+  // 合并新增知识条目（如 CTCAE 分级），老用户也能看到
+  if (d.knowledge && Array.isArray(d.knowledge)) {
+    const existing = new Set(d.knowledge.map(k => k.term));
+    defaultData().knowledge.forEach(k => {
+      if (!existing.has(k.term)) d.knowledge.push(k);
+    });
+  }
   const pid = d.projects[0].id;
   (d.plans || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
   (d.drugs || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
@@ -688,7 +717,6 @@ function renderDashboard() {
   const done = todayPlans.filter(p => p.done).length;
   const activeDrugs = data.drugs.filter(d => d.projectId === currentProjectId && d.useStart && !d.useEnd);
   const openFb = data.feedback.filter(f => f.status === 'open');
-  const tempMissed = !data.temps.find(x => x.projectId === currentProjectId && x.date === t);
 
   document.getElementById('statToday').textContent = todayPlans.length;
   document.getElementById('statDone').textContent = done;
@@ -723,15 +751,7 @@ function renderDashboard() {
     </div>`;
   }
 
-  // 温控提醒
-  if (tempMissed) {
-    html += `<div class="card" style="border-left:3px solid var(--warning);background:#fffbeb;">
-      <div style="font-size:13px;">🌡 今天还没有记录药物储存温度</div>
-      <div style="margin-top:6px;"><button class="btn btn-sm btn-primary" onclick="switchTab('drugs')">去打卡</button></div>
-    </div>`;
-  }
-
-  // 今日时间线
+  // 今日时间线（只显示用户添加的计划，不再常驻温控提醒）
   html += `<h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">今日时间线</h3>`;
   if (todayPlans.length === 0) {
     html += '<div class="empty-state"><div class="empty-icon">📋</div><p>今天还没有计划</p><p style="font-size:12px;margin-top:4px;">点右下角 + 快速记录</p></div>';
@@ -739,13 +759,18 @@ function renderDashboard() {
     html += todayPlans.map(p => `
       <div class="card" style="${p.done ? 'opacity:0.55;' : ''}border-left:3px solid var(--primary);">
         <div class="card-header">
-          <span class="card-title" style="cursor:pointer;" onclick="togglePlan('${p.id}')">
-            ${p.done ? '✔ ' : '▢ '}${escHtml(p.title)}
+          <span class="card-title">
+            ${p.done ? '✔ ' : ''}${escHtml(p.title)}
           </span>
           <span class="card-time">${periodLabel(p)}</span>
         </div>
         <div style="margin-bottom:4px;"><span class="type-badge ${PLAN_TYPES[p.type]?.cls}">${PLAN_TYPES[p.type]?.label || '其他'}</span></div>
         ${p.content ? `<div class="card-content">${escHtml(p.content)}</div>` : ''}
+        <div class="card-actions">
+          ${p.done
+            ? `<button class="btn btn-sm btn-secondary" onclick="togglePlan('${p.id}')">↩ 取消完成</button>`
+            : `<button class="btn btn-sm btn-success" onclick="togglePlan('${p.id}')">✓ 完成</button>`}
+        </div>
       </div>
     `).join('');
   }
@@ -1074,7 +1099,7 @@ function deleteDrug(id) {
 }
 
 // ==================== 知识库 ====================
-const KB_CATS = ['全部', '基础概念', '受试者', '知情同意', '安全性', '数据管理', '试验药物', '方案执行', '监查文档'];
+const KB_CATS = ['全部', '基础概念', '受试者', '知情同意', '安全性', '数据管理', '试验药物', '方案执行', '监查文档', 'CTCAE分级'];
 
 function renderKB(cat) {
   // 分类
@@ -1432,7 +1457,8 @@ function renderProjectBar() {
   const bar = document.getElementById('projectBar');
   bar.innerHTML = data.projects.map(p =>
     `<span class="project-chip ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject('${p.id}')">${escHtml(p.name)}</span>`
-  ).join('') + `<span class="project-chip add" onclick="addProject()">+ 项目</span>`;
+  ).join('') + `<span class="project-chip add" onclick="addProject()">+ 项目</span>`
+    + `<span class="project-chip add" onclick="manageProjects()">管理</span>`;
 }
 
 function switchProject(id) {
@@ -1457,6 +1483,47 @@ function addProject() {
     renderProjectBar(); render(currentPage());
     toast('已切换到新项目：' + name);
   });
+}
+
+function manageProjects() {
+  const list = data.projects.map(p => `
+    <div class="lab-row">
+      <span style="flex:1;">${escHtml(p.name)}${p.id === currentProjectId ? '（当前）' : ''}</span>
+      <button class="btn btn-sm btn-primary" onclick="renameProject('${p.id}')" style="margin-right:4px;">改名</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}')">删除</button>
+    </div>
+  `).join('');
+  showModal('管理项目', `
+    <div style="margin-bottom:8px;">${list}</div>
+    <div style="font-size:11px;color:#9ca3af;">删除项目会同时删除该项目下所有计划、用药、受试者、温控、AE、检查数据，请谨慎操作。</div>
+  `, () => closeModal());
+}
+
+function renameProject(id) {
+  const p = data.projects.find(x => x.id === id);
+  if (!p) return;
+  showModal('重命名项目', `
+    <div class="form-group"><label>项目名称</label><input type="text" id="fRename" value="${escHtml(p.name)}"></div>
+  `, () => {
+    const name = document.getElementById('fRename').value.trim();
+    if (!name) { alert('请输入名称'); return; }
+    p.name = name;
+    save(); closeModal(); renderProjectBar(); manageProjects();
+  });
+}
+
+function deleteProject(id) {
+  const p = data.projects.find(x => x.id === id);
+  if (!p) return;
+  if (data.projects.length <= 1) { alert('至少保留一个项目'); return; }
+  if (!confirm('确定删除项目「' + p.name + '」？该项目下所有数据将一并删除！')) return;
+  data.projects = data.projects.filter(x => x.id !== id);
+  ['plans', 'drugs', 'subjects', 'temps', 'aes', 'labResults'].forEach(k => {
+    data[k] = (data[k] || []).filter(x => x.projectId !== id);
+  });
+  if (currentProjectId === id) currentProjectId = data.projects[0].id;
+  save(); closeModal(); renderProjectBar(); render(currentPage());
+  toast('项目已删除');
 }
 
 // ==================== 受试者管理 ====================
@@ -1771,6 +1838,40 @@ const LAB_REFS = [
   { key: 'TSH', names: ['TSH', '促甲状腺激素'], unit: 'mIU/L', min: 0.27, max: 4.2, group: '甲状腺' }
 ];
 
+// CTCAE v5.0 常用检验项目自动分级（数值 → 分级）
+// mode 'lower'=数值越低越严重，'upper'=越高越严重；t 为 G1/G2/G3 的三个阈值
+const CTCAE_GRADES = {
+  'Hb':   { name: '血红蛋白降低（贫血）', unit: 'g/L', mode: 'lower', t: [100, 80, 65] },
+  'NEUT': { name: '中性粒细胞减少', unit: '×10⁹/L', mode: 'lower', t: [1.5, 1.0, 0.5] },
+  'WBC':  { name: '白细胞减少', unit: '×10⁹/L', mode: 'lower', t: [3.0, 2.0, 1.0] },
+  'PLT':  { name: '血小板减少', unit: '×10⁹/L', mode: 'lower', t: [75, 50, 25] },
+  'ALT':  { name: 'ALT升高', unit: 'U/L', mode: 'upper', t: [120, 200, 800] },
+  'AST':  { name: 'AST升高', unit: 'U/L', mode: 'upper', t: [105, 175, 700] },
+  'Cr':   { name: '肌酐升高', unit: 'μmol/L', mode: 'upper', t: [145, 291, 582] },
+  'GLU':  { name: '高血糖', unit: 'mmol/L', mode: 'upper', t: [8.9, 13.9, 27.8] },
+  'K':    { name: '高钾血症', unit: 'mmol/L', mode: 'upper', t: [5.5, 6.0, 7.0] },
+  'Na':   { name: '低钠血症', unit: 'mmol/L', mode: 'lower', t: [135, 130, 125] }
+};
+
+function autoGrade(key, value) {
+  const def = CTCAE_GRADES[key];
+  if (!def) return null;
+  const v = parseFloat(value);
+  if (isNaN(v)) return null;
+  const t = def.t;
+  if (def.mode === 'lower') {
+    if (v >= t[0]) return 1;
+    if (v >= t[1]) return 2;
+    if (v >= t[2]) return 3;
+    return 4;
+  } else {
+    if (v <= t[0]) return 1;
+    if (v <= t[1]) return 2;
+    if (v <= t[2]) return 3;
+    return 4;
+  }
+}
+
 // AE 名称 → 相关检验项目映射（用于自动关联）
 const AE_LAB_MAP = [
   { pattern: /肝|ALT|AST|GGT|黄疸|胆红素|转氨酶/i, labs: ['ALT', 'AST', 'GGT', 'ALP', 'TBIL', 'DBIL'], label: '肝功能相关' },
@@ -1817,8 +1918,8 @@ function renderAEList() {
     return;
   }
   div.innerHTML = aes.map(a => `
-    <div class="ae-card ${a.isSAE ? 'sae' : ''}" onclick="showAEDetail('${a.id}')" style="cursor:pointer;">
-      <div class="card-header">
+    <div class="ae-card ${a.isSAE ? 'sae' : ''}">
+      <div class="card-header" style="cursor:pointer;" onclick="showAEDetail('${a.id}')">
         <span class="card-title">${escHtml(a.subjectName || '未指定受试者')} · ${escHtml(a.aeName)}${a.isSAE ? '<span class="ae-sae-badge">SAE</span>' : ''}</span>
         <span class="ae-grade g${a.grade}">G${a.grade}</span>
       </div>
@@ -1826,8 +1927,19 @@ function renderAEList() {
         发生：${escHtml(a.onsetDate || '-')} ｜ 转归：${escHtml(a.outcome || '-')} ｜ 相关性：${escHtml(a.causality || '-')}
       </div>
       ${a.photos && a.photos.length ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">📎 ${a.photos.length} 张照片</div>` : ''}
+      <div class="card-actions">
+        <button class="btn btn-sm btn-primary" onclick="showAEForm('${a.id}')">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteAE('${a.id}')">删除</button>
+      </div>
     </div>
   `).join('');
+}
+
+function deleteAE(id) {
+  const a = data.aes.find(x => x.id === id);
+  if (!confirm('确定删除 AE 记录「' + (a ? a.aeName : '') + '」？')) return;
+  data.aes = data.aes.filter(x => x.id !== id);
+  save(); renderAEList();
 }
 
 function renderLabList() {
@@ -1861,11 +1973,13 @@ function deleteLab(id) {
   save(); renderLabList();
 }
 
-// 新建 AE 记录
-function showAEForm(editId) {
-  const isEdit = !!editId;
+// 新建 AE 记录（editId 或 prefill 对象）
+function showAEForm(editId, prefill) {
+  const isEdit = typeof editId === 'string' && editId;
   const a = isEdit ? data.aes.find(x => x.id === editId) : null;
-  const d = a || { subjectId: '', aeName: '', grade: 1, isSAE: false, onsetDate: today(), causality: '很可能有关', outcome: '恢复中', treatment: '', note: '' };
+  const base = { subjectId: '', aeName: '', grade: 1, isSAE: false, onsetDate: today(), causality: '很可能有关', outcome: '恢复中', treatment: '', note: '', photos: [] };
+  const d = a || Object.assign(base, prefill || {});
+  tempAEPhotos = (d.photos || []).slice();
   const subs = data.subjects.filter(s => s.projectId === currentProjectId);
   const subOpts = subs.map(s => `<option value="${s.id}" ${s.id === d.subjectId ? 'selected' : ''}>${escHtml(s.name)}${s.screeningNo ? '（' + escHtml(s.screeningNo) + '）' : ''}</option>`).join('');
 
@@ -2065,6 +2179,68 @@ document.getElementById('labPhotoInput').addEventListener('change', async (e) =>
   reader.readAsDataURL(files[0]);
 });
 
+function getOCRWorker() {
+  if (window._ocrWorker) return window._ocrWorker;
+  if (typeof Tesseract === 'undefined') return null;
+  return Tesseract.createWorker('chi_sim', 1, {
+    workerPath: 'lib/worker.min.js',
+    corePath: 'lib/tesseract-core.wasm.js',
+    langPath: 'lib'
+  }).then(w => { window._ocrWorker = w; return w; });
+}
+
+// 拍照 EDC 的 AE 记录，自动识别录入
+function captureAEPhoto() {
+  document.getElementById('aePhotoInput2').click();
+}
+
+document.getElementById('aePhotoInput2').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (!files.length) return;
+  toast('正在识别 AE 记录...');
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const { dataUrl } = detectCropEnhance(img);
+        const worker = await getOCRWorker();
+        if (!worker) { toast('OCR 组件未加载，请稍后重试'); return; }
+        const { data: ocrData } = await worker.recognize(dataUrl);
+        const parsed = parseAEText(ocrData.text);
+        showAEForm(null, {
+          aeName: parsed.aeName || '',
+          grade: parsed.grade || 1,
+          isSAE: parsed.isSAE,
+          onsetDate: today(),
+          photos: [dataUrl],
+          note: '（照片自动识别，请核对后保存）'
+        });
+      } catch (err) {
+        toast('识别失败：' + (err.message || ''));
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(files[0]);
+});
+
+const AE_TERMS = ['血红蛋白降低','贫血','中性粒细胞减少','白细胞减少','血小板减少','转氨酶升高','ALT升高','AST升高','肝功能异常','肾功能异常','肌酐升高','发热','腹泻','恶心','呕吐','皮疹','乏力','头痛','头晕','高血压','低血压','高血糖','低血糖','高钾','低钾','低钠','感染','肺炎','咳嗽','呼吸困难','食欲下降','便秘','失眠','心悸','心律失常','出血','血栓','疼痛','水肿','瘙痒','脱发','口炎','口腔溃疡'];
+
+function parseAEText(text) {
+  const r = { aeName: '', grade: 0, isSAE: false };
+  r.isSAE = /SAE|严重不良事件|严重不良反应/.test(text);
+  let gm = text.match(/G\s*(\d)\b/i) || text.match(/CTCAE\s*(\d)/i) || text.match(/(\d)\s*级/);
+  if (gm) r.grade = parseInt(gm[1]);
+  // 优先匹配更长的术语
+  const sorted = [...AE_TERMS].sort((a, b) => b.length - a.length);
+  for (const t of sorted) {
+    if (text.includes(t)) { r.aeName = t; break; }
+  }
+  return r;
+}
+
 function extractLabValues(text) {
   const results = [];
   const seen = new Set();
@@ -2097,12 +2273,17 @@ function renderLabExtract(extracted, photo) {
         <span class="card-title">识别到 ${extracted.length} 项检验值${abnormalCount ? '（' + abnormalCount + ' 项异常 ⚠）' : ''}</span>
       </div>
       <img src="${photo}" class="lab-photo" style="max-height:120px;object-fit:contain;">
-      ${extracted.length ? extracted.map(v => `
+      ${extracted.length ? extracted.map(v => {
+        const g = v.abnormal ? autoGrade(v.key, v.value) : null;
+        const gradeDef = g ? CTCAE_GRADES[v.key] : null;
+        return `
         <div class="lab-row ${v.abnormal ? 'lab-abnormal' : ''}">
-          <span>${escHtml(v.key)} ${escHtml(v.ref.group)}</span>
-          <span class="lab-value">${escHtml(v.value)} ${v.ref.unit}${v.abnormal ? ' ⚠' : ''}</span>
+          <span>${escHtml(v.key)}</span>
+          <span class="lab-value">${escHtml(v.value)} ${v.ref.unit}${g ? ` <span class="ae-grade g${g}" style="margin-left:4px;">G${g}</span>` : (v.abnormal ? ' ⚠' : '')}</span>
           <span class="lab-ref">${v.ref.min}~${v.ref.max}</span>
-        </div>`).join('') : '<div style="font-size:12px;color:#9ca3af;margin:8px 0;">未识别到标准检验项目，可手动录入</div>'}
+        </div>
+        ${g && gradeDef ? `<div style="font-size:11px;color:var(--danger);margin:-2px 0 6px 8px;">CTCAE ${g}级 · ${escHtml(gradeDef.name)}</div>` : ''}`;
+      }).join('') : '<div style="font-size:12px;color:#9ca3af;margin:8px 0;">未识别到标准检验项目，可手动录入</div>'}
       <div class="form-group" style="margin-top:10px;"><label>归属受试者</label>
         <select id="fLabSub">${subs.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('') || '<option value="">（先创建受试者）</option>'}</select>
       </div>
@@ -2114,7 +2295,29 @@ function renderLabExtract(extracted, photo) {
         <button class="btn btn-secondary" id="fLabCancel" style="flex:1;">取消</button>
         <button class="btn btn-primary" id="fLabSave" style="flex:1;">保存检查结果</button>
       </div>
+      <button class="btn btn-success" id="fLabToAE" style="width:100%;justify-content:center;margin-top:8px;">⚡ 按最高分级一键生成 AE 记录</button>
     </div>`;
+  document.getElementById('fLabToAE').onclick = () => {
+    // 找最高分级的异常项
+    let best = null, bestGrade = 0;
+    extracted.forEach(v => {
+      if (!v.abnormal) return;
+      const g = autoGrade(v.key, v.value);
+      if (g && g > bestGrade) { bestGrade = g; best = v; }
+    });
+    if (!best) { alert('没有可自动分级的异常值，请手动新建 AE'); return; }
+    const subId = document.getElementById('fLabSub').value;
+    const sub = data.subjects.find(s => s.id === subId);
+    const def = CTCAE_GRADES[best.key];
+    const aeName = def ? def.name : (best.key + '异常');
+    showAEForm(null, {
+      subjectId: subId, subjectName: sub ? sub.name : '',
+      aeName, grade: bestGrade, isSAE: bestGrade >= 4,
+      onsetDate: today(), causality: '很可能有关', outcome: '恢复中',
+      treatment: '', note: best.key + ' ' + best.value + ' ' + best.ref.unit,
+      photos: [photo]
+    });
+  };
   document.getElementById('fLabCancel').onclick = () => { zone.innerHTML = ''; };
   document.getElementById('fLabSave').onclick = () => {
     const subId = document.getElementById('fLabSub').value;
