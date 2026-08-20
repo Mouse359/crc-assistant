@@ -526,8 +526,8 @@ function getDefaultKnowledge() {
   ];
 }
 
-let data = load();
 let currentProjectId = safeGet('crc_current_project') || '';
+let data = load();
 
 function load() {
   const raw = safeGet(KEY);
