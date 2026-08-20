@@ -178,6 +178,38 @@ body {
   .tab { font-size: 10px; padding: 8px 2px; }
   .stats-row { flex-wrap: wrap; }
 }
+
+/* ===== 项目切换栏 ===== */
+.project-bar {
+  display: flex; gap: 6px; padding: 8px 14px; background: #fff;
+  border-bottom: 1px solid var(--border); overflow-x: auto;
+  position: sticky; top: 0; z-index: 98; align-items: center;
+}
+.project-chip {
+  padding: 4px 14px; border-radius: 16px; font-size: 12px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer;
+  white-space: nowrap; user-select: none; transition: all 0.15s;
+}
+.project-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.project-chip.add { border-style: dashed; color: var(--text-secondary); }
+
+/* ===== 受试者卡片 ===== */
+.subject-card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); border-left: 4px solid var(--primary); }
+.subject-header { display: flex; justify-content: space-between; align-items: baseline; }
+.subject-name { font-size: 15px; font-weight: 700; }
+.subject-info { font-size: 12px; color: var(--text-secondary); margin: 4px 0 8px; line-height: 1.7; }
+.visit-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 4px; background: #fafafa; }
+.visit-row .v-point { font-weight: 600; color: var(--text); }
+.visit-row .v-date { color: var(--text-secondary); }
+.visit-done { opacity: 0.55; }
+.visit-urgent { background: #fef2f2; border: 1px solid #fecaca; }
+.visit-urgent .v-date { color: var(--danger); font-weight: 600; }
+.visit-overdue { background: #fee2e2; }
+.badge-count { display: inline-block; min-width: 18px; text-align: center; background: var(--danger); color: #fff; border-radius: 9px; font-size: 11px; padding: 1px 5px; }
+
+/* 温控 */
+.temp-ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.temp-miss { background: #fef2f2; border: 1px solid #fecaca; }
 </style>
 </head>
 <body>
@@ -189,10 +221,14 @@ body {
     <div class="date" id="dateDisplay"></div>
   </div>
 
+  <!-- 项目切换 -->
+  <div class="project-bar" id="projectBar"></div>
+
   <div class="tabs">
     <div class="tab active" data-page="dashboard"><span class="tab-icon">日</span>今日</div>
     <div class="tab" data-page="plans"><span class="tab-icon">计</span>计划</div>
     <div class="tab" data-page="drugs"><span class="tab-icon">药</span>用药</div>
+    <div class="tab" data-page="subjects"><span class="tab-icon">人</span>受试者</div>
     <div class="tab" data-page="kb"><span class="tab-icon">知</span>知识库</div>
     <div class="tab" data-page="scan"><span class="tab-icon">扫</span>扫描</div>
     <div class="tab" data-page="tools"><span class="tab-icon">算</span>工具</div>
@@ -241,6 +277,19 @@ body {
       <div style="text-align:center;margin-top:10px;">
         <button class="btn btn-primary" onclick="showDrugForm()">+ 新建药物管理</button>
       </div>
+
+      <h3 style="font-size:14px;margin:16px 0 10px;color:var(--text-secondary);">🌡 药物温控记录</h3>
+      <div class="card" id="tempTodayCard"></div>
+      <div id="tempList"></div>
+    </div>
+
+    <!-- ===== 受试者 ===== -->
+    <div class="page" id="page-subjects">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn btn-primary" onclick="showSubjectForm()" style="flex:1;justify-content:center;">+ 新建受试者</button>
+        <button class="btn btn-secondary" onclick="renderSubjects()">刷新</button>
+      </div>
+      <div id="subjectList"></div>
     </div>
 
     <!-- ===== 知识库 ===== -->
@@ -338,8 +387,12 @@ const KEY = 'crc_assistant_v1';
 
 function defaultData() {
   return {
+    projects: [{ id: 'p_default', name: '默认项目' }],
     plans: [],
     drugs: [],
+    subjects: [],
+    temps: [],
+    tempSetting: { reminderTime: '09:00', minTemp: 2, maxTemp: 8 },
     feedback: [],
     knowledge: getDefaultKnowledge()
   };
@@ -421,13 +474,31 @@ function getDefaultKnowledge() {
 }
 
 let data = load();
+let currentProjectId = localStorage.getItem('crc_current_project') || '';
 
 function load() {
   const raw = localStorage.getItem(KEY);
-  if (raw) { try { return JSON.parse(raw); } catch(e) {} }
-  return defaultData();
+  let d = null;
+  if (raw) { try { d = JSON.parse(raw); } catch(e) {} }
+  if (!d) d = defaultData();
+  // 数据迁移：老数据补齐新字段
+  if (!d.projects || !d.projects.length) d.projects = [{ id: 'p_default', name: '默认项目' }];
+  if (!d.subjects) d.subjects = [];
+  if (!d.temps) d.temps = [];
+  if (!d.tempSetting) d.tempSetting = { reminderTime: '09:00', minTemp: 2, maxTemp: 8 };
+  const pid = d.projects[0].id;
+  (d.plans || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
+  (d.drugs || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
+  (d.subjects || []).forEach(p => { if (!p.projectId) p.projectId = pid; });
+  if (!currentProjectId || !d.projects.some(p => p.id === currentProjectId)) {
+    currentProjectId = d.projects[0].id;
+  }
+  return d;
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(data)); }
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(data));
+  localStorage.setItem('crc_current_project', currentProjectId);
+}
 
 // ==================== 工具函数 ====================
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 6); }
@@ -469,7 +540,8 @@ function render(page) {
   switch(page) {
     case 'dashboard': renderDashboard(); break;
     case 'plans': renderPlans(); break;
-    case 'drugs': renderDrugs(); break;
+    case 'drugs': renderDrugs(); renderTemps(); break;
+    case 'subjects': renderSubjects(); break;
     case 'kb': renderKB(); break;
     case 'scan': break;
     case 'tools': break;
@@ -491,10 +563,11 @@ const PLAN_TYPES = {
 
 function renderDashboard() {
   const t = today();
-  const todayPlans = data.plans.filter(p => p.date === t).sort((a,b) => a.time.localeCompare(b.time));
+  const todayPlans = data.plans.filter(p => p.date === t && p.projectId === currentProjectId).sort((a,b) => a.time.localeCompare(b.time));
   const done = todayPlans.filter(p => p.done).length;
-  const activeDrugs = data.drugs.filter(d => d.useStart && !d.useEnd);
+  const activeDrugs = data.drugs.filter(d => d.projectId === currentProjectId && d.useStart && !d.useEnd);
   const openFb = data.feedback.filter(f => f.status === 'open');
+  const tempMissed = !data.temps.find(x => x.projectId === currentProjectId && x.date === t);
 
   document.getElementById('statToday').textContent = todayPlans.length;
   document.getElementById('statDone').textContent = done;
@@ -502,10 +575,47 @@ function renderDashboard() {
   document.getElementById('statFb').textContent = openFb.length;
 
   const div = document.getElementById('todayTimeline');
+
+  // 访视窗口预警（3天内到期或已超窗未完成）
+  const warnings = [];
+  data.subjects.filter(s => s.projectId === currentProjectId).forEach(s => {
+    (s.visits || []).forEach(v => {
+      if (!v.done && v.winEnd <= addDays(t, 3) && v.winEnd >= t) {
+        warnings.push({ sub: s, visit: v, type: 'soon' });
+      } else if (!v.done && v.winEnd < t) {
+        warnings.push({ sub: s, visit: v, type: 'overdue' });
+      }
+    });
+  });
+
+  let html = '';
+
+  // 预警区
+  if (warnings.length) {
+    html += `<div class="card" style="border-left:3px solid var(--danger);background:#fff7f7;">
+      <div class="card-header"><span class="card-title">⚠ 访视预警（${warnings.length}）</span></div>
+      ${warnings.map(w => `
+        <div style="font-size:12px;padding:4px 0;color:${w.type === 'overdue' ? 'var(--danger)' : '#b45309'};">
+          <strong>${escHtml(w.sub.name)}</strong> ${escHtml(w.visit.point)}访视 ${w.type === 'overdue' ? '已超窗！' : '窗口即将到期：' + escHtml(w.visit.winEnd)}
+        </div>`).join('')}
+      <div style="margin-top:6px;"><button class="btn btn-sm btn-primary" onclick="switchTab('subjects')">去处理</button></div>
+    </div>`;
+  }
+
+  // 温控提醒
+  if (tempMissed) {
+    html += `<div class="card" style="border-left:3px solid var(--warning);background:#fffbeb;">
+      <div style="font-size:13px;">🌡 今天还没有记录药物储存温度</div>
+      <div style="margin-top:6px;"><button class="btn btn-sm btn-primary" onclick="switchTab('drugs')">去打卡</button></div>
+    </div>`;
+  }
+
+  // 今日时间线
+  html += `<h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">今日时间线</h3>`;
   if (todayPlans.length === 0) {
-    div.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>今天还没有计划</p><p style="font-size:12px;margin-top:4px;">点右下角 + 快速记录</p></div>';
+    html += '<div class="empty-state"><div class="empty-icon">📋</div><p>今天还没有计划</p><p style="font-size:12px;margin-top:4px;">点右下角 + 快速记录</p></div>';
   } else {
-    div.innerHTML = todayPlans.map(p => `
+    html += todayPlans.map(p => `
       <div class="card" style="${p.done ? 'opacity:0.55;' : ''}border-left:3px solid var(--primary);">
         <div class="card-header">
           <span class="card-title" style="cursor:pointer;" onclick="togglePlan('${p.id}')">
@@ -518,11 +628,21 @@ function renderDashboard() {
       </div>
     `).join('');
   }
+
+  div.innerHTML = html;
+}
+
+function switchTab(page) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-page="${page}"]`)?.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  render(page);
 }
 
 function renderPlans(filter) {
   filter = filter || document.querySelector('#page-plans .filter-chip.active')?.dataset.filter || 'all';
-  let plans = [...data.plans].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  let plans = [...data.plans.filter(p => p.projectId === currentProjectId)].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   if (filter === 'visit') plans = plans.filter(p => p.type === 'visit');
   else if (filter === 'drug') plans = plans.filter(p => p.type === 'drug');
   else if (filter === 'use') plans = plans.filter(p => p.type === 'use');
@@ -608,7 +728,7 @@ function showPlanForm(editData) {
       content: document.getElementById('fContent').value.trim()
     };
     if (isEdit) { Object.assign(editData, obj); }
-    else { data.plans.push({ id: genId(), done: false, ...obj }); }
+    else { data.plans.push({ id: genId(), done: false, projectId: currentProjectId, ...obj }); }
     save(); closeModal(); render(currentPage());
   });
 }
@@ -626,7 +746,7 @@ function quickAddPlan(type) {
 
 // ==================== 药物管理 ====================
 function renderDrugs(filter) {
-  let drugs = [...data.drugs];
+  let drugs = [...data.drugs.filter(d => d.projectId === currentProjectId)];
   const q = (document.getElementById('drugSearch')?.value || '').trim();
   if (q) drugs = drugs.filter(d => d.name.includes(q) || d.project.includes(q));
 
@@ -703,8 +823,8 @@ function showDrugForm(editData) {
       note: document.getElementById('fNote').value.trim()
     };
     if (isEdit) { Object.assign(editData, obj); }
-    else { data.drugs.push({ id: genId(), ...obj }); }
-    save(); closeModal(); renderDrugs();
+    else { data.drugs.push({ id: genId(), projectId: currentProjectId, ...obj }); }
+    save(); closeModal(); renderDrugs(); renderTemps();
   });
 }
 
@@ -981,7 +1101,7 @@ let notified = new Set();
 function checkReminders() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const t = today(), tm = nowTime();
-  data.plans.filter(p => p.date === t && !p.done && p.time === tm).forEach(p => {
+  data.plans.filter(p => p.date === t && !p.done && p.time === tm && p.projectId === currentProjectId).forEach(p => {
     const key = p.id + p.time;
     if (notified.has(key)) return;
     notified.add(key);
@@ -991,12 +1111,323 @@ function checkReminders() {
       requireInteraction: true
     });
   });
+  checkTempReminder();
 }
 setInterval(checkReminders, 30000);
 checkReminders();
 document.addEventListener('click', function req() {
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }, { once: false });
+
+// ==================== 多项目管理 ====================
+function renderProjectBar() {
+  const bar = document.getElementById('projectBar');
+  bar.innerHTML = data.projects.map(p =>
+    `<span class="project-chip ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject('${p.id}')">${escHtml(p.name)}</span>`
+  ).join('') + `<span class="project-chip add" onclick="addProject()">+ 项目</span>`;
+}
+
+function switchProject(id) {
+  currentProjectId = id;
+  save();
+  renderProjectBar();
+  render(currentPage());
+}
+
+function addProject() {
+  showModal('新建项目', `
+    <div class="form-group"><label>项目名称 *</label>
+      <input type="text" id="fProjName" placeholder="例：XX药III期临床研究">
+    </div>
+  `, () => {
+    const name = document.getElementById('fProjName').value.trim();
+    if (!name) { alert('请输入项目名称'); return; }
+    const p = { id: genId(), name };
+    data.projects.push(p);
+    currentProjectId = p.id;
+    save(); closeModal();
+    renderProjectBar(); render(currentPage());
+    toast('已切换到新项目：' + name);
+  });
+}
+
+// ==================== 受试者管理 ====================
+function parseVisitPlan(text) {
+  // "2周,4周,8周,12周" 或 "7天,30天,90天,6月"
+  return (text || '').split(/[,，、;；\s]+/)
+    .map(s => { const m = s.match(/(\d+(?:\.\d+)?)\s*(周|天|日|月)/); return m ? { num: parseFloat(m[1]), unit: m[2] } : null; })
+    .filter(Boolean);
+}
+
+function addTime(base, p) {
+  const d = new Date(base);
+  if (p.unit === '周') d.setDate(d.getDate() + Math.round(p.num * 7));
+  else if (p.unit === '天' || p.unit === '日') d.setDate(d.getDate() + p.num);
+  else d.setMonth(d.getMonth() + p.num);
+  return d;
+}
+
+function fmtDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+function generateVisits(subject) {
+  const points = parseVisitPlan(subject.visitPlan);
+  const base = new Date(subject.enrollDate + 'T00:00:00');
+  const win = subject.window || 3;
+  return points.map(p => {
+    const target = addTime(base, p);
+    const ws = new Date(target); ws.setDate(ws.getDate() - win);
+    const we = new Date(target); we.setDate(we.getDate() + win);
+    const label = p.unit === '周' ? `第${p.num}周` : p.unit === '月' ? `${p.num}个月` : `第${p.num}天`;
+    return {
+      point: label,
+      target: fmtDate(target), winStart: fmtDate(ws), winEnd: fmtDate(we),
+      done: false, doneDate: '', note: ''
+    };
+  });
+}
+
+function renderSubjects() {
+  const div = document.getElementById('subjectList');
+  const subs = data.subjects.filter(s => s.projectId === currentProjectId);
+  if (!subs.length) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><p>当前项目还没有受试者</p><p style="font-size:12px;margin-top:4px;">点击上方按钮建档，自动生成访视计划</p></div>';
+    return;
+  }
+  const t = today();
+  div.innerHTML = subs.map(s => {
+    const visits = s.visits || [];
+    const upcoming = visits.filter(v => !v.done && v.winEnd >= t);
+    const urgentCount = visits.filter(v => !v.done && v.winEnd >= t && v.winEnd <= addDays(t, 3)).length;
+    return `
+    <div class="subject-card">
+      <div class="subject-header">
+        <span class="subject-name">${escHtml(s.name)}</span>
+        ${urgentCount ? `<span class="badge-count">${urgentCount}项临期</span>` : ''}
+      </div>
+      <div class="subject-info">
+        筛选号：${escHtml(s.screeningNo || '-')} ｜ 随机号：${escHtml(s.randomNo || '-')}<br>
+        入组日期：${escHtml(s.enrollDate || '-')} ｜ 窗口 ±${s.window || 3}天<br>
+        ${s.phone ? `电话：<a href="tel:${escHtml(s.phone)}" style="color:var(--primary);">${escHtml(s.phone)}</a>` : ''}
+        ${s.note ? `<br>备注：${escHtml(s.note)}` : ''}
+      </div>
+      <div style="margin-top:8px;">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">访视计划（${visits.filter(v=>v.done).length}/${visits.length} 已完成）</div>
+        ${visits.map(v => {
+          let cls = 'visit-row';
+          if (v.done) cls += ' visit-done';
+          else if (v.winEnd < t) cls += ' visit-urgent visit-overdue';
+          else if (v.winEnd <= addDays(t, 3)) cls += ' visit-urgent';
+          const dateStr = v.done ? `已完成 ${v.doneDate || ''}` : `窗口 ${v.winStart} ~ ${v.winEnd}${v.winEnd < t ? '（已超窗！）' : ''}`;
+          return `
+          <div class="${cls}">
+            <span class="v-point" style="cursor:pointer;" onclick="toggleVisit('${s.id}', '${v.point}')">
+              ${v.done ? '✔' : '▢'} ${escHtml(v.point)}
+            </span>
+            <span class="v-date">${escHtml(dateStr)}</span>
+          </div>`;
+        }).join('')}
+        ${visits.length === 0 ? '<div style="font-size:12px;color:#9ca3af;">未设置访视计划</div>' : ''}
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-sm btn-primary" onclick="showSubjectForm('${s.id}')">编辑</button>
+        <button class="btn btn-sm btn-secondary" onclick="regenerateVisits('${s.id}')">重算访视</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteSubject('${s.id}')">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return fmtDate(d);
+}
+
+function showSubjectForm(editId) {
+  const isEdit = !!editId;
+  const s = isEdit ? data.subjects.find(x => x.id === editId) : null;
+  const d = s || { name: '', screeningNo: '', randomNo: '', phone: '', enrollDate: today(), visitPlan: '2周,4周,8周,12周', window: 3, note: '' };
+  showModal(isEdit ? '编辑受试者' : '新建受试者', `
+    <div class="form-group"><label>姓名 / 拼音缩写 *</label>
+      <input type="text" id="fSubName" value="${escHtml(d.name)}" placeholder="例：张三 / ZS">
+    </div>
+    <div class="form-group"><label>筛选号</label><input type="text" id="fSubScr" value="${escHtml(d.screeningNo)}" placeholder="S001"></div>
+    <div class="form-group"><label>随机号</label><input type="text" id="fSubRnd" value="${escHtml(d.randomNo)}" placeholder="R001"></div>
+    <div class="form-group"><label>联系电话</label><input type="tel" id="fSubPhone" value="${escHtml(d.phone)}" placeholder="用于随访联系"></div>
+    <div class="form-group"><label>入组日期（访视计划起点）</label><input type="date" id="fSubEnroll" value="${d.enrollDate}"></div>
+    <div class="form-group"><label>访视计划（逗号分隔）</label>
+      <input type="text" id="fSubPlan" value="${escHtml(d.visitPlan)}" placeholder="例：2周,4周,8周,12周 或 7天,30天,90天">
+    </div>
+    <div class="form-group"><label>访视窗口 ±天数</label><input type="number" id="fSubWindow" value="${d.window || 3}"></div>
+    <div class="form-group"><label>备注</label><textarea id="fSubNote" rows="2">${escHtml(d.note)}</textarea></div>
+  `, () => {
+    const name = document.getElementById('fSubName').value.trim();
+    if (!name) { alert('请输入姓名'); return; }
+    const obj = {
+      name,
+      screeningNo: document.getElementById('fSubScr').value.trim(),
+      randomNo: document.getElementById('fSubRnd').value.trim(),
+      phone: document.getElementById('fSubPhone').value.trim(),
+      enrollDate: document.getElementById('fSubEnroll').value,
+      visitPlan: document.getElementById('fSubPlan').value.trim(),
+      window: parseInt(document.getElementById('fSubWindow').value) || 3,
+      note: document.getElementById('fSubNote').value.trim(),
+      projectId: currentProjectId
+    };
+    if (isEdit) {
+      Object.assign(s, obj);
+      s.visits = generateVisits(s);
+    } else {
+      const ns = { id: genId(), visits: [], ...obj };
+      ns.visits = generateVisits(ns);
+      data.subjects.push(ns);
+    }
+    save(); closeModal(); renderSubjects();
+  });
+}
+
+function regenerateVisits(id) {
+  const s = data.subjects.find(x => x.id === id);
+  if (!s) return;
+  // 保留已完成的访视状态
+  const oldDone = {};
+  (s.visits || []).forEach(v => { if (v.done) oldDone[v.point] = v; });
+  s.visits = generateVisits(s);
+  s.visits.forEach(v => { if (oldDone[v.point]) { v.done = true; v.doneDate = oldDone[v.point].doneDate; v.note = oldDone[v.point].note; } });
+  save(); renderSubjects();
+  toast('访视计划已重新计算');
+}
+
+function toggleVisit(subjectId, point) {
+  const s = data.subjects.find(x => x.id === subjectId);
+  if (!s) return;
+  const v = (s.visits || []).find(x => x.point === point);
+  if (!v) return;
+  if (v.done) { v.done = false; v.doneDate = ''; }
+  else {
+    v.done = true;
+    v.doneDate = today();
+    toast('访视已完成：' + point);
+  }
+  save(); renderSubjects();
+}
+
+function deleteSubject(id) {
+  const s = data.subjects.find(x => x.id === id);
+  if (!confirm('确定删除受试者「' + s.name + '」？访视记录将一并删除')) return;
+  data.subjects = data.subjects.filter(x => x.id !== id);
+  save(); renderSubjects();
+}
+
+// ==================== 药物温控记录 ====================
+function renderTemps() {
+  // 今日打卡状态
+  const t = today();
+  const todayTemp = data.temps.find(x => x.projectId === currentProjectId && x.date === t);
+  const card = document.getElementById('tempTodayCard');
+  const st = data.tempSetting || {};
+  const inRange = todayTemp && todayTemp.temp >= st.minTemp && todayTemp.temp <= st.maxTemp;
+  card.className = 'card ' + (todayTemp ? (inRange ? 'temp-ok' : 'temp-miss') : 'temp-miss');
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-title">今日温控（要求 ${st.minTemp}~${st.maxTemp}℃）</span>
+      <span class="card-time">${todayTemp ? '✔ 已记录' : '未记录'}</span>
+    </div>
+    <div style="font-size:13px;">
+      ${todayTemp
+        ? `记录温度：<strong>${todayTemp.temp}℃</strong>（${todayTemp.time}）${todayTemp.note ? ' 备注：' + escHtml(todayTemp.note) : ''}${inRange ? '' : '<span style="color:var(--danger);"> ⚠ 超出范围！</span>'}`
+        : '今天还没记录温度，请及时打卡（建议每日定时）'}
+    </div>
+    <div class="card-actions">
+      <button class="btn btn-sm btn-primary" onclick="showTempForm()">${todayTemp ? '再次记录' : '记录温度'}</button>
+      <button class="btn btn-sm btn-secondary" onclick="showTempSetting()">提醒设置</button>
+    </div>
+  `;
+
+  // 最近记录
+  const list = document.getElementById('tempList');
+  const recs = data.temps.filter(x => x.projectId === currentProjectId).sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time)).slice(0, 10);
+  list.innerHTML = recs.length
+    ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">最近记录</div>` + recs.map(r => `
+      <div class="card" style="padding:10px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span>${escHtml(r.date)} ${escHtml(r.time)}</span>
+          <span style="font-weight:600;${r.temp >= (data.tempSetting.minTemp||2) && r.temp <= (data.tempSetting.maxTemp||8) ? 'color:var(--success);' : 'color:var(--danger);'}">${r.temp}℃</span>
+        </div>
+        ${r.note ? `<div style="font-size:12px;color:var(--text-secondary);">${escHtml(r.note)}</div>` : ''}
+        <button class="btn btn-xs btn-danger" style="margin-top:4px;" onclick="deleteTemp('${r.id}')">删除</button>
+      </div>`).join('')
+    : '<div class="empty-state"><p style="font-size:12px;">暂无温控记录</p></div>';
+}
+
+function showTempForm() {
+  const now = new Date();
+  showModal('记录药物储存温度', `
+    <div class="form-group"><label>温度（℃）*</label>
+      <input type="number" id="fTempVal" step="0.1" placeholder="例：4.5">
+    </div>
+    <div class="form-group"><label>日期</label><input type="date" id="fTempDate" value="${today()}"></div>
+    <div class="form-group"><label>时间</label><input type="time" id="fTempTime" value="${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}"></div>
+    <div class="form-group"><label>备注</label><input type="text" id="fTempNote" placeholder="选填"></div>
+  `, () => {
+    const v = parseFloat(document.getElementById('fTempVal').value);
+    if (isNaN(v)) { alert('请输入温度数值'); return; }
+    data.temps.push({
+      id: genId(),
+      projectId: currentProjectId,
+      temp: v,
+      date: document.getElementById('fTempDate').value,
+      time: document.getElementById('fTempTime').value,
+      note: document.getElementById('fTempNote').value.trim()
+    });
+    const st = data.tempSetting;
+    if (v < st.minTemp || v > st.maxTemp) {
+      toast('⚠ 温度超出要求范围 ' + st.minTemp + '~' + st.maxTemp + '℃，请检查药物！');
+    } else {
+      toast('温控记录已保存');
+    }
+    save(); closeModal(); renderTemps();
+  });
+}
+
+function showTempSetting() {
+  const st = data.tempSetting;
+  showModal('温控提醒设置', `
+    <div class="form-group"><label>每日提醒时间</label><input type="time" id="fTrTime" value="${st.reminderTime}"></div>
+    <div class="form-group"><label>温度下限（℃）</label><input type="number" id="fTrMin" step="0.1" value="${st.minTemp}"></div>
+    <div class="form-group"><label>温度上限（℃）</label><input type="number" id="fTrMax" step="0.1" value="${st.maxTemp}"></div>
+  `, () => {
+    st.reminderTime = document.getElementById('fTrTime').value || '09:00';
+    st.minTemp = parseFloat(document.getElementById('fTrMin').value) || 2;
+    st.maxTemp = parseFloat(document.getElementById('fTrMax').value) || 8;
+    save(); closeModal(); renderTemps();
+    toast('提醒时间已设置为每日 ' + st.reminderTime);
+  });
+}
+
+function deleteTemp(id) {
+  data.temps = data.temps.filter(x => x.id !== id);
+  save(); renderTemps();
+}
+
+// 温控提醒检查（在 checkReminders 中调用）
+let tempRemindedDate = '';
+function checkTempReminder() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const t = today();
+  const tm = nowTime();
+  const st = data.tempSetting;
+  if (tm < st.reminderTime) return;
+  if (tempRemindedDate === t) return;
+  const todayTemp = data.temps.find(x => x.projectId === currentProjectId && x.date === t);
+  if (todayTemp) return;
+  tempRemindedDate = t;
+  new Notification('🌡 温控打卡提醒', {
+    body: '今天还没有记录药物储存温度（要求 ' + st.minTemp + '~' + st.maxTemp + '℃）',
+    tag: 'temp-reminder',
+    requireInteraction: true
+  });
+}
 
 // ==================== 扫描模块 ====================
 let scans = []; // {id, name, w, h, base, processed, redacts:[{x,y,w,h,mode}]}
@@ -1452,6 +1883,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==================== 初始化 ====================
+renderProjectBar();
 render('dashboard');
 render('drugs');
 render('feedback');
