@@ -1,0 +1,26 @@
+{
+  "name": "CRC 临床研究助手",
+  "short_name": "CRC助手",
+  "description": "CRC 计划管理、用药时间记录、知识库查询、计算工具",
+  "start_url": ".",
+  "scope": "/crc-assistant/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f5fa",
+  "theme_color": "#4a3a8c",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

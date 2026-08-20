@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CRC助手">
+<meta name="theme-color" content="#4a3a8c">
+<meta name="description" content="CRC 临床研究协调员工作助手">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>CRC 助手</title>
+<style>
+:root {
+  --primary: #4a3a8c;
+  --primary-light: #efeafc;
+  --danger: #d94a5d;
+  --success: #3cb878;
+  --warning: #f0a040;
+  --bg: #f6f5fa;
+  --card: #fff;
+  --text: #2d3436;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  display: flex; justify-content: center;
+}
+.app-container { width: 100%; max-width: 560px; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* 顶部 */
+.header {
+  background: linear-gradient(135deg, #3a2d75, #4a3a8c);
+  color: #fff; padding: 14px 20px; text-align: center;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.header h1 { font-size: 17px; font-weight: 600; letter-spacing: 1px; }
+.header .clock { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: "SF Mono", Menlo, Consolas, monospace; margin-top: 2px; letter-spacing: 2px; }
+.header .date { font-size: 12px; opacity: 0.85; margin-top: 1px; }
+
+/* 标签栏 */
+.tabs { display: flex; background: #fff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 99; overflow-x: auto; }
+.tab {
+  flex: 1; padding: 10px 4px; text-align: center; font-size: 12px;
+  color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: all 0.2s; min-width: 0; user-select: none;
+}
+.tab:hover { color: var(--primary); background: var(--primary-light); }
+.tab.active { color: var(--primary); font-weight: 600; border-bottom-color: var(--primary); }
+.tab .tab-icon { font-size: 16px; display: block; margin-bottom: 2px; }
+
+/* 内容区 */
+.content { flex: 1; padding: 14px; overflow-y: auto; padding-bottom: 80px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* 卡片 */
+.card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.card-title { font-size: 14px; font-weight: 600; flex: 1; }
+.card-time { font-size: 12px; color: var(--primary); font-weight: 600; white-space: nowrap; margin-left: 8px; background: var(--primary-light); padding: 3px 8px; border-radius: 20px; }
+.card-content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; }
+.card-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+
+/* 按钮 */
+.btn { padding: 8px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #3a2d75; }
+.btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-secondary { background: #f3f4f6; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-voice { background: var(--primary-light); color: var(--primary); border: 1px solid #d8ccf5; }
+.btn-voice.recording { background: #fee2e2; color: var(--danger); border-color: #fca5a5; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.btn-fab {
+  position: fixed; bottom: 20px; right: 20px; width: 52px; height: 52px;
+  border-radius: 50%; background: var(--primary); color: #fff; font-size: 24px;
+  border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(74,58,140,0.4);
+  z-index: 50; display: flex; align-items: center; justify-content: center;
+}
+.btn-fab:hover { background: #3a2d75; transform: scale(1.05); }
+
+/* 任务类型标签 */
+.type-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.type-visit { background: #e0f2fe; color: #0369a1; }
+.type-drug { background: #fef3c7; color: #b45309; }
+.type-blood { background: #fee2e2; color: #b91c1c; }
+.type-follow { background: #dcfce7; color: #15803d; }
+.type-data { background: #ede9fe; color: #6d28d9; }
+.type-doc { background: #f3e8ff; color: #7e22ce; }
+.type-other { background: #f3f4f6; color: #4b5563; }
+
+/* 筛选 */
+.filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-chip { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: #fff; color: var(--text-secondary); user-select: none; }
+.filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* 搜索 */
+.search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.search-input:focus { border-color: var(--primary); }
+
+/* 知识条目 */
+.kb-item { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); border-left: 4px solid var(--primary); }
+.kb-term { font-size: 15px; font-weight: 700; color: var(--primary); }
+.kb-en { font-size: 12px; color: #8a7bc0; font-style: italic; margin: 2px 0 6px; }
+.kb-def { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+.kb-cat { font-size: 11px; color: #9ca3af; margin-top: 6px; }
+
+/* 药物卡片 */
+.drug-card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); border-left: 4px solid var(--warning); }
+.drug-name { font-size: 14px; font-weight: 700; }
+.drug-time-row { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.drug-time-item { flex: 1; min-width: 120px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; font-size: 12px; }
+.drug-time-item .label { color: #b45309; font-weight: 600; margin-bottom: 2px; }
+.drug-time-item .value { color: var(--text); font-size: 13px; font-weight: 600; }
+.drug-time-item .value.empty { color: #9ca3af; font-weight: 400; }
+
+/* 计算结果 */
+.calc-result { background: var(--primary-light); border: 1px solid #d8ccf5; border-radius: 8px; padding: 12px; margin-top: 10px; font-size: 14px; }
+.calc-result .big { font-size: 20px; font-weight: 700; color: var(--primary); }
+
+/* 模态框 */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 200; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s; }
+.modal { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; padding: 20px; animation: slideUp 0.25s; }
+.modal h3 { font-size: 16px; margin-bottom: 14px; text-align: center; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 500; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
+.form-group textarea { resize: vertical; min-height: 70px; }
+.form-actions { display: flex; gap: 10px; margin-top: 16px; }
+.form-actions .btn { flex: 1; text-align: center; justify-content: center; padding: 12px; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+
+/* 空状态 */
+.empty-state { text-align: center; padding: 36px 20px; color: var(--text-secondary); }
+.empty-state .empty-icon { font-size: 40px; margin-bottom: 10px; opacity: 0.5; }
+.empty-state p { font-size: 13px; }
+
+/* 统计 */
+.stats-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat-card { flex: 1; background: var(--card); border-radius: var(--radius); padding: 14px; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.stat-value { font-size: 28px; font-weight: 700; color: var(--primary); line-height: 1; }
+.stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 5px; }
+.stat-card.warning .stat-value { color: var(--warning); }
+.stat-card.success .stat-value { color: var(--success); }
+.stat-card.danger .stat-value { color: var(--danger); }
+
+/* 反馈条目 */
+.feedback-item { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
+.feedback-text { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.feedback-meta { font-size: 11px; color: #9ca3af; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+/* 录音状态条 */
+.recording-bar { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 13px; z-index: 150; display: none; }
+.recording-bar.active { display: block; animation: pulse 1s infinite; }
+
+/* 快捷操作区 */
+.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.quick-btn { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-align: center; cursor: pointer; box-shadow: var(--shadow); transition: all 0.15s; }
+.quick-btn:hover { border-color: var(--primary); }
+.quick-btn .icon { font-size: 20px; }
+.quick-btn .label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+@media (max-width: 400px) {
+  .tab { font-size: 10px; padding: 8px 2px; }
+  .stats-row { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-container" id="app">
+  <div class="header">
+    <h1>CRC 临床研究助手</h1>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="date" id="dateDisplay"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-page="dashboard"><span class="tab-icon">日</span>今日</div>
+    <div class="tab" data-page="plans"><span class="tab-icon">计</span>计划</div>
+    <div class="tab" data-page="drugs"><span class="tab-icon">药</span>用药</div>
+    <div class="tab" data-page="kb"><span class="tab-icon">知</span>知识库</div>
+    <div class="tab" data-page="scan"><span class="tab-icon">扫</span>扫描</div>
+    <div class="tab" data-page="tools"><span class="tab-icon">算</span>工具</div>
+    <div class="tab" data-page="feedback"><span class="tab-icon">反</span>反馈</div>
+  </div>
+
+  <div class="content" id="content">
+
+    <!-- ===== 今日 ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-value" id="statToday">0</div><div class="stat-label">今日计划</div></div>
+        <div class="stat-card success"><div class="stat-value" id="statDone">0</div><div class="stat-label">已完成</div></div>
+        <div class="stat-card warning"><div class="stat-value" id="statMed">0</div><div class="stat-label">用药中</div></div>
+        <div class="stat-card danger"><div class="stat-value" id="statFb">0</div><div class="stat-label">待处理反馈</div></div>
+      </div>
+      <div class="quick-actions">
+        <div class="quick-btn" onclick="quickAddPlan('访视')"><div class="icon">👥</div><div class="label">快速记访视</div></div>
+        <div class="quick-btn" onclick="quickAddPlan('拿药')"><div class="icon">💊</div><div class="label">快速记拿药</div></div>
+        <div class="quick-btn" onclick="quickAddPlan('用药')"><div class="icon">⏱</div><div class="label">记录用药时间</div></div>
+        <div class="quick-btn" onclick="quickFeedback()"><div class="icon">🎙</div><div class="label">语音记问题</div></div>
+      </div>
+      <h3 style="font-size:14px;margin:14px 0 10px;color:var(--text-secondary);">今日时间线</h3>
+      <div id="todayTimeline"></div>
+    </div>
+
+    <!-- ===== 计划 ===== -->
+    <div class="page" id="page-plans">
+      <div class="filter-row">
+        <span class="filter-chip active" data-filter="all">全部</span>
+        <span class="filter-chip" data-filter="visit">访视</span>
+        <span class="filter-chip" data-filter="drug">拿药</span>
+        <span class="filter-chip" data-filter="use">用药</span>
+        <span class="filter-chip" data-filter="data">数据</span>
+        <span class="filter-chip" data-filter="other">其他</span>
+      </div>
+      <div id="planList"></div>
+    </div>
+
+    <!-- ===== 用药 ===== -->
+    <div class="page" id="page-drugs">
+      <div class="search-box">
+        <input type="text" class="search-input" id="drugSearch" placeholder="搜索项目/药品名称...">
+      </div>
+      <div id="drugList"></div>
+      <div style="text-align:center;margin-top:10px;">
+        <button class="btn btn-primary" onclick="showDrugForm()">+ 新建药物管理</button>
+      </div>
+    </div>
+
+    <!-- ===== 知识库 ===== -->
+    <div class="page" id="page-kb">
+      <div class="search-box">
+        <input type="text" class="search-input" id="kbSearch" placeholder="搜索术语（中文/英文缩写）...">
+        <button class="btn btn-voice" id="kbVoiceBtn" onclick="startVoiceSearch()">🎙</button>
+      </div>
+      <div class="filter-row" id="kbCats"></div>
+      <div id="kbList"></div>
+    </div>
+
+    <!-- ===== 扫描 ===== -->
+    <div class="page" id="page-scan">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">拍摄或选择文件图片，自动识别文件区域并增强文字效果</div>
+        <button class="btn btn-primary" onclick="captureImages()" style="margin:0 auto;padding:12px 24px;">📷 拍摄 / 选择图片（支持多张）</button>
+      </div>
+      <input type="file" id="scanInput" accept="image/*" multiple style="display:none;">
+
+      <div class="card" id="redactCard" style="display:none;">
+        <div class="card-title" style="margin-bottom:8px;">关键词打码 / 屏蔽</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">输入要遮挡的文字（用逗号分隔），自动识别文字位置并遮挡</div>
+        <input type="text" class="search-input" id="redactKeywords" placeholder="例：姓名,身份证号,电话,医院名称">
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-primary" onclick="applyKeywordRedact('mosaic')" style="flex:1;justify-content:center;">马赛克打码</button>
+          <button class="btn btn-primary" onclick="applyKeywordRedact('block')" style="flex:1;justify-content:center;">黑条屏蔽</button>
+          <button class="btn btn-secondary" onclick="undoRedact()" style="flex:1;justify-content:center;">撤销</button>
+        </div>
+      </div>
+
+      <div id="scanList"></div>
+
+      <div class="card" id="exportCard" style="display:none;">
+        <div class="card-title" style="margin-bottom:8px;">导出与分享</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="exportPDF()" style="flex:1;justify-content:center;">生成 PDF</button>
+          <button class="btn btn-success" onclick="exportWord()" style="flex:1;justify-content:center;">生成 Word</button>
+          <button class="btn btn-secondary" onclick="shareDoc()" style="flex:1;justify-content:center;">分享微信</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 工具 ===== -->
+    <div class="page" id="page-tools">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px;">访视窗口期计算器</div>
+        <div class="form-group"><label>基线日期（如首次用药日）</label><input type="date" id="calcBaseDate"></div>
+        <div class="form-group"><label>方案访视点（如第 2 周、第 30 天）</label><input type="text" id="calcVisitPoint" placeholder="例：2周 / 30天 / 3月"></div>
+        <div class="form-group"><label>窗口期（默认 ±3 天）</label><input type="number" id="calcWindow" value="3"></div>
+        <button class="btn btn-primary" onclick="calcVisitWindow()">计算窗口期</button>
+        <div class="calc-result" id="calcVisitResult" style="display:none;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px;">药物数量计算器</div>
+        <div class="form-group"><label>每日剂量（片/粒/袋）</label><input type="number" id="calcDose" step="0.5" placeholder="例：2"></div>
+        <div class="form-group"><label>用药天数</label><input type="number" id="calcDays" placeholder="例：28"></div>
+        <div class="form-group"><label>损耗比例 %（默认 10%）</label><input type="number" id="calcLoss" value="10"></div>
+        <button class="btn btn-primary" onclick="calcDrugQty()">计算总量</button>
+        <div class="calc-result" id="calcDrugResult" style="display:none;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px;">日期差计算器（访视间隔）</div>
+        <div class="form-group"><label>起始日期</label><input type="date" id="calcDate1"></div>
+        <div class="form-group"><label>结束日期</label><input type="date" id="calcDate2"></div>
+        <button class="btn btn-primary" onclick="calcDateDiff()">计算间隔</button>
+        <div class="calc-result" id="calcDateResult" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ===== 反馈 ===== -->
+    <div class="page" id="page-feedback">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">遇到问题快速语音记录，回家后可慢慢整理</div>
+        <button class="btn btn-primary" id="fbRecordBtn" onclick="toggleFeedbackRecord()" style="margin:0 auto;padding:14px 28px;font-size:15px;">🎙 按住说话 / 点击开始录音</button>
+        <div style="font-size:11px;color:#9ca3af;margin-top:8px;">支持语音识别转文字，也可以手写输入</div>
+      </div>
+      <div id="feedbackList"></div>
+    </div>
+
+  </div>
+</div>
+
+<button class="btn-fab" id="fabBtn" title="快速记录">+</button>
+<div id="modalContainer"></div>
+<div class="recording-bar" id="recordingBar">● 正在聆听...</div>
+
+<!-- 本地离线库：PDF 生成 + OCR 识别 -->
+<script src="lib/jspdf.umd.min.js"></script>
+<script src="lib/tesseract.min.js"></script>
+
+<script>
+// ==================== 数据 ====================
+const KEY = 'crc_assistant_v1';
+
+function defaultData() {
+  return {
+    plans: [],
+    drugs: [],
+    feedback: [],
+    knowledge: getDefaultKnowledge()
+  };
+}
+
+function getDefaultKnowledge() {
+  return [
+    // 基础概念
+    { cat: '基础概念', term: 'CRC', en: 'Clinical Research Coordinator', def: '临床研究协调员。在研究者授权下，负责临床试验的非医学性事务协调工作，包括受试者筛选随访、数据录入、药物管理、文档管理等。' },
+    { cat: '基础概念', term: 'CRA', en: 'Clinical Research Associate', def: '临床监查员。由申办方委派，负责监查研究中心的研究执行情况，核对原始数据与病例报告表的一致性。' },
+    { cat: '基础概念', term: 'PI', en: 'Principal Investigator', def: '主要研究者。对临床试验在该中心的全部工作负最终责任的研究者，须具备相应专业资质。' },
+    { cat: '基础概念', term: 'Sub-I', en: 'Sub-Investigator', def: '助理研究者。PI 授权的参与试验的研究团队成员，分担部分研究职责，须在授权分工表中明确。' },
+    { cat: '基础概念', term: 'GCP', en: 'Good Clinical Practice', def: '药物临床试验质量管理规范。临床试验设计、实施、记录和报告的国际伦理与科学质量标准，保证受试者权益和数据可信。' },
+    { cat: '基础概念', term: 'ICH', en: 'International Council for Harmonisation', def: '人用药品注册技术要求国际协调会议。其 E6(R2) 是各国公认的 GCP 指导原则。' },
+    { cat: '基础概念', term: 'SOP', en: 'Standard Operating Procedure', def: '标准操作规程。为保证试验操作一致性而制定的书面程序，CRC 的所有操作必须遵循项目 SOP。' },
+    { cat: '基础概念', term: 'NMPA', en: 'National Medical Products Administration', def: '国家药品监督管理局，负责药品注册和临床试验监管，前身为 CFDA。' },
+    { cat: '基础概念', term: 'IRB/EC', en: 'Institutional Review Board / Ethics Committee', def: '机构审查委员会/伦理委员会。审查临床试验方案和知情同意书，保护受试者权益的独立机构。' },
+    { cat: '基础概念', term: '申办方', en: 'Sponsor', def: '发起、管理和资助临床试验的公司、机构或组织，对试验整体负责。' },
+    { cat: '基础概念', term: '方案', en: 'Protocol', def: '临床试验方案。描述试验目的、设计、方法、统计考虑和实施安排的正式文件，是试验的根本依据。' },
+
+    // 受试者相关
+    { cat: '受试者', term: '受试者', en: 'Subject / Participant', def: '参加临床试验并接受试验药物或对照治疗的患者或健康志愿者。' },
+    { cat: '受试者', term: '筛选', en: 'Screening', def: '按入选/排除标准对潜在受试者进行评估的过程，筛选号（S号）与随机号（R号）需严格区分。' },
+    { cat: '受试者', term: '入组', en: 'Enrollment', def: '受试者完成筛选、符合全部标准并签署知情同意书后正式进入试验。' },
+    { cat: '受试者', term: '随机化', en: 'Randomization', def: '按随机方案将受试者分配到不同治疗组，避免选择偏倚。通常通过 IWRS/IVRS 系统进行。' },
+    { cat: '受试者', term: '脱失', en: 'Dropout / Withdrawal', def: '受试者中途退出试验，须记录原因并尽量完成出组访视，数据不能删除。' },
+    { cat: '受试者', term: '依从性', en: 'Compliance', def: '受试者按方案要求服药、访视、检查的程度。通过药物清点和服药日记评估。' },
+    { cat: '受试者', term: 'IWRS/IVRS', en: 'Interactive Web/Voice Response System', def: '交互式网络/语音应答系统，用于随机化分组和药物发放管理。' },
+
+    // 知情同意
+    { cat: '知情同意', term: 'ICF', en: 'Informed Consent Form', def: '知情同意书。向受试者说明试验目的、流程、风险和权益的法定文件，须伦理批准后方可使用。' },
+    { cat: '知情同意', term: '知情同意过程', en: 'Informed Consent Process', def: '研究者向受试者充分讲解、回答疑问、自愿签署的完整过程。受试者须本人签字并注明日期，CRC 可协助但不能替代研究者执行。' },
+    { cat: '知情同意', term: '再同意', en: 'Re-consent', def: '方案、ICF 或风险信息更新后，需请已入组受试者重新签署新版知情同意书。' },
+
+    // 安全性事件
+    { cat: '安全性', term: 'AE', en: 'Adverse Event', def: '不良事件。受试者接受试验治疗后出现的不良医学事件，不一定与治疗有因果关系。' },
+    { cat: '安全性', term: 'SAE', en: 'Serious Adverse Event', def: '严重不良事件。导致死亡、危及生命、住院/延长住院、残疾、先天畸形等后果的事件。CRC 须在获知后 24 小时内报告申办方并记录。' },
+    { cat: '安全性', term: 'SUSAR', en: 'Suspected Unexpected Serious Adverse Reaction', def: '可疑且非预期严重不良反应。与研究药物可能相关、性质或严重程度超出研究者手册记载的严重不良反应。' },
+    { cat: '安全性', term: 'ADR', en: 'Adverse Drug Reaction', def: '药物不良反应。与药物存在合理因果关系的对人体有害的反应。' },
+    { cat: '安全性', term: 'CTCAE', en: 'Common Terminology Criteria for Adverse Events', def: '不良事件通用术语标准。美国 NCI 制定的 AE 分级标准，分 1-5 级，用于统一 AE 严重程度评估。' },
+    { cat: '安全性', term: 'SAE报告时限', en: 'SAE Reporting Timeline', def: '致命或危及生命的 SAE：获知后 7 天内报告；其他 SAE：获知后 15 天内报告。申办方另有要求时按项目 SOP 执行。' },
+
+    // 数据管理
+    { cat: '数据管理', term: 'CRF', en: 'Case Report Form', def: '病例报告表。按方案要求设计的记录每位受试者试验数据的表格，分为纸质版和电子版。' },
+    { cat: '数据管理', term: 'EDC', en: 'Electronic Data Capture', def: '电子数据采集系统。用于在线录入和保存临床试验数据的软件系统，常见有 Medidata Rave、Viedoc 等。' },
+    { cat: '数据管理', term: 'SDV', en: 'Source Data Verification', def: '原始数据核查。将 CRF 数据与原始医疗记录逐项核对，确保数据真实准确，由 CRA 执行。' },
+    { cat: '数据管理', term: '原始资料', en: 'Source Document', def: '原始医疗文件，如病历、化验单、处方，是试验数据的原始出处。原始记录须及时、准确、完整。' },
+    { cat: '数据管理', term: '质疑', en: 'Query', def: '数据管理人员对录入数据提出的疑问，CRC 需在规定时限内核实并回复。' },
+    { cat: '数据管理', term: '数据锁定', en: 'Database Lock', def: '全部数据核查完毕、质疑解决后锁定数据库，锁定后数据不可修改。' },
+    { cat: '数据管理', term: 'ALCOA', en: 'Attributable, Legible, Contemporaneous, Original, Accurate', def: '数据质量五原则：可归因、清晰可读、实时记录、原始、准确。' },
+
+    // 试验药物
+    { cat: '试验药物', term: 'IMP', en: 'Investigational Medicinal Product', def: '试验用药品。临床试验中使用的试验药物、对照药或安慰剂，须专人专柜管理。' },
+    { cat: '试验药物', term: '药物清点', en: 'Drug Accountability', def: '对试验药物的接收、发放、回收、剩余数量进行记录和核对，保证药物管理可追溯。' },
+    { cat: '试验药物', term: '温控记录', en: 'Temperature Log', def: '药物储存环境温度记录，须每日记录，超温须立即报告并隔离药物。' },
+    { cat: '试验药物', term: '双盲', en: 'Double-blind', def: '受试者和研究者均不知道治疗分组，减少偏倚。紧急情况可按规定揭盲。' },
+    { cat: '试验药物', term: '揭盲', en: 'Unblinding', def: '紧急医疗需要时按揭盲流程获知受试者分组。须严格按 SOP 执行并记录原因。' },
+    { cat: '试验药物', term: '药物编号', en: 'Kit Number', def: '每个受试者专属的药物包装编号，与随机号对应，发放时须严格核对。' },
+
+    // 方案执行
+    { cat: '方案执行', term: 'PD', en: 'Protocol Deviation', def: '方案偏离。未按方案执行但未显著影响受试者权益或数据完整性的偏差，如访视超窗。' },
+    { cat: '方案执行', term: 'PV', en: 'Protocol Violation', def: '方案违背。严重影响受试者安全或数据完整性的违背，如纳入不符合标准的受试者。' },
+    { cat: '方案执行', term: '访视窗口', en: 'Visit Window', def: '方案规定的各访视允许的时间范围，如第 2 周访视允许 ±3 天。超出窗口即构成方案偏离。' },
+    { cat: '方案执行', term: '入选标准', en: 'Inclusion Criteria', def: '受试者必须全部满足的条件。' },
+    { cat: '方案执行', term: '排除标准', en: 'Exclusion Criteria', def: '受试者不能存在的任何一项条件。' },
+    { cat: '方案执行', term: '终点', en: 'Endpoint', def: '评价试验结果的主要指标（主要终点）和次要指标（次要终点）。' },
+    { cat: '方案执行', term: '基线', en: 'Baseline', def: '治疗开始前的初始状态评估数据，作为后续疗效和安全性的对照基准。' },
+
+    // 监查与文档
+    { cat: '监查文档', term: 'SIV', en: 'Site Initiation Visit', def: '中心启动访视。试验开始前 CRA 到中心进行培训和确认准备情况。' },
+    { cat: '监查文档', term: 'IMV', en: 'Interim Monitoring Visit', def: '中期监查访视。试验进行中 CRA 定期到中心监查。' },
+    { cat: '监查文档', term: 'COV', en: 'Close-out Visit', def: '中心关闭访视。试验结束后 CRA 到中心进行收尾核查。' },
+    { cat: '监查文档', term: 'TMF', en: 'Trial Master File', def: '临床试验主文档。申办方保存的试验全部必需文件。' },
+    { cat: '监查文档', term: 'ISF', en: 'Investigator Site File', def: '研究者文件夹。中心保存的试验文件，包括伦理批件、授权表、培训记录等。' },
+    { cat: '监查文档', term: '授权分工表', en: 'Delegation Log', def: 'PI 授权团队成员职责的正式记录，CRC 只能执行授权范围内的任务。' },
+    { cat: '监查文档', term: '稽查', en: 'Audit', def: '独立的系统性检查，评估试验执行是否符合方案、GCP 和法规要求。' },
+    { cat: '监查文档', term: '视察', en: 'Inspection', def: '药品监管部门（如 NMPA）对中心和申办方进行的官方检查。' }
+  ];
+}
+
+let data = load();
+
+function load() {
+  const raw = localStorage.getItem(KEY);
+  if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+  return defaultData();
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(data)); }
+
+// ==================== 工具函数 ====================
+function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 6); }
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function nowDateTime() { return `${today()} ${nowTime()}`; }
+function formatDateTime(dt) { return dt ? dt.replace('T', ' ').slice(0, 16) : ''; }
+
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+function formatDateCN(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日 周${WEEKDAYS[d.getDay()]}`;
+}
+
+// ==================== 时钟 ====================
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  document.getElementById('dateDisplay').textContent =
+    `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${WEEKDAYS[now.getDay()]}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ==================== 标签切换 ====================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + tab.dataset.page).classList.add('active');
+    render(tab.dataset.page);
+  });
+});
+function currentPage() { return document.querySelector('.tab.active')?.dataset.page || 'dashboard'; }
+function render(page) {
+  switch(page) {
+    case 'dashboard': renderDashboard(); break;
+    case 'plans': renderPlans(); break;
+    case 'drugs': renderDrugs(); break;
+    case 'kb': renderKB(); break;
+    case 'scan': break;
+    case 'tools': break;
+    case 'feedback': renderFeedback(); break;
+  }
+}
+
+// ==================== 计划管理 ====================
+const PLAN_TYPES = {
+  'visit': { label: '访视', cls: 'type-visit' },
+  'drug':  { label: '拿药', cls: 'type-drug' },
+  'use':   { label: '用药', cls: 'type-drug' },
+  'blood': { label: '采血', cls: 'type-blood' },
+  'follow':{ label: '随访', cls: 'type-follow' },
+  'data':  { label: '数据', cls: 'type-data' },
+  'doc':   { label: '文档', cls: 'type-doc' },
+  'other': { label: '其他', cls: 'type-other' }
+};
+
+function renderDashboard() {
+  const t = today();
+  const todayPlans = data.plans.filter(p => p.date === t).sort((a,b) => a.time.localeCompare(b.time));
+  const done = todayPlans.filter(p => p.done).length;
+  const activeDrugs = data.drugs.filter(d => d.useStart && !d.useEnd);
+  const openFb = data.feedback.filter(f => f.status === 'open');
+
+  document.getElementById('statToday').textContent = todayPlans.length;
+  document.getElementById('statDone').textContent = done;
+  document.getElementById('statMed').textContent = activeDrugs.length;
+  document.getElementById('statFb').textContent = openFb.length;
+
+  const div = document.getElementById('todayTimeline');
+  if (todayPlans.length === 0) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>今天还没有计划</p><p style="font-size:12px;margin-top:4px;">点右下角 + 快速记录</p></div>';
+  } else {
+    div.innerHTML = todayPlans.map(p => `
+      <div class="card" style="${p.done ? 'opacity:0.55;' : ''}border-left:3px solid var(--primary);">
+        <div class="card-header">
+          <span class="card-title" style="cursor:pointer;" onclick="togglePlan('${p.id}')">
+            ${p.done ? '✔ ' : '▢ '}${escHtml(p.title)}
+          </span>
+          <span class="card-time">${p.time}</span>
+        </div>
+        <div style="margin-bottom:4px;"><span class="type-badge ${PLAN_TYPES[p.type]?.cls}">${PLAN_TYPES[p.type]?.label || '其他'}</span></div>
+        ${p.content ? `<div class="card-content">${escHtml(p.content)}</div>` : ''}
+      </div>
+    `).join('');
+  }
+}
+
+function renderPlans(filter) {
+  filter = filter || document.querySelector('#page-plans .filter-chip.active')?.dataset.filter || 'all';
+  let plans = [...data.plans].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  if (filter === 'visit') plans = plans.filter(p => p.type === 'visit');
+  else if (filter === 'drug') plans = plans.filter(p => p.type === 'drug');
+  else if (filter === 'use') plans = plans.filter(p => p.type === 'use');
+  else if (filter === 'data') plans = plans.filter(p => ['data','doc','blood','follow'].includes(p.type));
+  else if (filter === 'other') plans = plans.filter(p => p.type === 'other');
+  else {
+    // 全部：今天优先
+    const t = today();
+    plans.sort((a,b) => {
+      if (a.date === t && b.date !== t) return -1;
+      if (b.date === t && a.date !== t) return 1;
+      return (a.date+a.time).localeCompare(b.date+b.time);
+    });
+  }
+
+  const div = document.getElementById('planList');
+  if (plans.length === 0) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>暂无计划</p></div>';
+    return;
+  }
+  div.innerHTML = plans.map(p => {
+    const isToday = p.date === today();
+    return `
+    <div class="card" style="${p.done ? 'opacity:0.55;' : ''}${isToday ? 'border-left:3px solid var(--primary);' : ''}">
+      <div class="card-header">
+        <span class="card-title" style="cursor:pointer;" onclick="togglePlan('${p.id}')">
+          ${p.done ? '✔ ' : '▢ '}${escHtml(p.title)}
+        </span>
+        <span class="card-time">${formatDateCN(p.date)} ${p.time}</span>
+      </div>
+      <div style="margin-bottom:4px;"><span class="type-badge ${PLAN_TYPES[p.type]?.cls}">${PLAN_TYPES[p.type]?.label || '其他'}</span></div>
+      ${p.content ? `<div class="card-content">${escHtml(p.content)}</div>` : ''}
+      <div class="card-actions">
+        <button class="btn btn-sm btn-primary" onclick="editPlan('${p.id}')">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="deletePlan('${p.id}')">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePlan(id) {
+  const p = data.plans.find(x => x.id === id);
+  if (p) { p.done = !p.done; save(); render(currentPage()); }
+}
+function deletePlan(id) {
+  if (!confirm('确定删除？')) return;
+  data.plans = data.plans.filter(p => p.id !== id);
+  save(); render(currentPage());
+}
+
+function showPlanForm(editData) {
+  const isEdit = !!editData;
+  const d = editData || { date: today(), time: nowTime(), type: 'visit', title: '', content: '' };
+  const bodyHtml = `
+    <div class="form-group"><label>任务类型</label>
+      <select id="fType">
+        ${Object.entries(PLAN_TYPES).map(([k,v]) => `<option value="${k}" ${k===d.type?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group"><label>日期</label><input type="date" id="fDate" value="${d.date}"></div>
+    <div class="form-group"><label>时间点</label><input type="time" id="fTime" value="${d.time}"></div>
+    <div class="form-group"><label>任务标题 *</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="fTitle" value="${escHtml(d.title)}" placeholder="例：A001号受试者第4次访视" style="flex:1;">
+        <button type="button" class="btn btn-voice" onclick="voiceFill('fTitle', this)">🎙</button>
+      </div>
+    </div>
+    <div class="form-group"><label>详细内容</label>
+      <div style="display:flex;gap:6px;">
+        <textarea id="fContent" rows="3" placeholder="补充说明...">${escHtml(d.content)}</textarea>
+        <button type="button" class="btn btn-voice" onclick="voiceFill('fContent', this)" style="align-self:flex-start;">🎙</button>
+      </div>
+    </div>
+  `;
+  showModal(isEdit ? '编辑计划' : '新建计划', bodyHtml, () => {
+    const title = document.getElementById('fTitle').value.trim();
+    if (!title) { alert('请输入任务标题'); return; }
+    const obj = {
+      type: document.getElementById('fType').value,
+      date: document.getElementById('fDate').value,
+      time: document.getElementById('fTime').value,
+      title,
+      content: document.getElementById('fContent').value.trim()
+    };
+    if (isEdit) { Object.assign(editData, obj); }
+    else { data.plans.push({ id: genId(), done: false, ...obj }); }
+    save(); closeModal(); render(currentPage());
+  });
+}
+
+function editPlan(id) {
+  const p = data.plans.find(x => x.id === id);
+  if (p) showPlanForm(p);
+}
+
+function quickAddPlan(type) {
+  const typeNames = { '访视':'visit', '拿药':'drug', '用药':'use' };
+  const t = typeNames[type] || 'other';
+  showPlanForm({ date: today(), time: nowTime(), type: t, title: '', content: '' });
+}
+
+// ==================== 药物管理 ====================
+function renderDrugs(filter) {
+  let drugs = [...data.drugs];
+  const q = (document.getElementById('drugSearch')?.value || '').trim();
+  if (q) drugs = drugs.filter(d => d.name.includes(q) || d.project.includes(q));
+
+  const div = document.getElementById('drugList');
+  if (drugs.length === 0) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">💊</div><p>暂无药物记录</p></div>';
+    return;
+  }
+  div.innerHTML = drugs.map(d => `
+    <div class="drug-card">
+      <div class="drug-name">${escHtml(d.name)}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">项目：${escHtml(d.project)}</div>
+      <div class="drug-time-row">
+        <div class="drug-time-item">
+          <div class="label">拿药开始时间</div>
+          <div class="value ${d.dispense ? '' : 'empty'}">${d.dispense ? escHtml(formatDateTime(d.dispense)) : '未记录'}</div>
+        </div>
+        <div class="drug-time-item">
+          <div class="label">药物使用开始时间</div>
+          <div class="value ${d.useStart ? '' : 'empty'}">${d.useStart ? escHtml(formatDateTime(d.useStart)) : '未记录'}</div>
+        </div>
+        <div class="drug-time-item">
+          <div class="label">用药结束时间</div>
+          <div class="value ${d.useEnd ? '' : 'empty'}">${d.useEnd ? escHtml(formatDateTime(d.useEnd)) : '进行中'}</div>
+        </div>
+      </div>
+      ${d.note ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px;">备注：${escHtml(d.note)}</div>` : ''}
+      <div class="card-actions">
+        <button class="btn btn-sm btn-primary" onclick="editDrug('${d.id}')">编辑</button>
+        <button class="btn btn-sm btn-success" onclick="quickTime('${d.id}', 'dispense')">记拿药</button>
+        <button class="btn btn-sm btn-success" onclick="quickTime('${d.id}', 'useStart')">记用药</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteDrug('${d.id}')">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function quickTime(id, field) {
+  const d = data.drugs.find(x => x.id === id);
+  if (!d) return;
+  if (d[field]) {
+    if (!confirm(`该时间已记录（${formatDateTime(d[field])}），要更新为当前时间吗？`)) return;
+  }
+  d[field] = new Date().toISOString().slice(0, 16);
+  save(); renderDrugs();
+  toast('已记录当前时间');
+}
+
+function showDrugForm(editData) {
+  const isEdit = !!editData;
+  const d = editData || { name: '', project: '', dispense: '', useStart: '', useEnd: '', note: '' };
+  const bodyHtml = `
+    <div class="form-group"><label>药品名称 *</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="fDrugName" value="${escHtml(d.name)}" placeholder="例：试验药物XX片" style="flex:1;">
+        <button type="button" class="btn btn-voice" onclick="voiceFill('fDrugName', this)">🎙</button>
+      </div>
+    </div>
+    <div class="form-group"><label>所属项目</label><input type="text" id="fProject" value="${escHtml(d.project)}" placeholder="例：XX临床研究"></div>
+    <div class="form-group"><label>拿药开始时间</label><input type="datetime-local" id="fDispense" value="${d.dispense || ''}"></div>
+    <div class="form-group"><label>药物使用开始时间</label><input type="datetime-local" id="fUseStart" value="${d.useStart || ''}"></div>
+    <div class="form-group"><label>用药结束时间（可选）</label><input type="datetime-local" id="fUseEnd" value="${d.useEnd || ''}"></div>
+    <div class="form-group"><label>备注</label><textarea id="fNote" rows="2">${escHtml(d.note)}</textarea></div>
+  `;
+  showModal(isEdit ? '编辑药物' : '新建药物管理', bodyHtml, () => {
+    const name = document.getElementById('fDrugName').value.trim();
+    if (!name) { alert('请输入药品名称'); return; }
+    const obj = {
+      name,
+      project: document.getElementById('fProject').value.trim(),
+      dispense: document.getElementById('fDispense').value,
+      useStart: document.getElementById('fUseStart').value,
+      useEnd: document.getElementById('fUseEnd').value,
+      note: document.getElementById('fNote').value.trim()
+    };
+    if (isEdit) { Object.assign(editData, obj); }
+    else { data.drugs.push({ id: genId(), ...obj }); }
+    save(); closeModal(); renderDrugs();
+  });
+}
+
+function editDrug(id) { const d = data.drugs.find(x => x.id === id); if (d) showDrugForm(d); }
+function deleteDrug(id) {
+  if (!confirm('确定删除？')) return;
+  data.drugs = data.drugs.filter(d => d.id !== id);
+  save(); renderDrugs();
+}
+
+// ==================== 知识库 ====================
+const KB_CATS = ['全部', '基础概念', '受试者', '知情同意', '安全性', '数据管理', '试验药物', '方案执行', '监查文档'];
+
+function renderKB(cat) {
+  // 分类
+  const catDiv = document.getElementById('kbCats');
+  if (!catDiv.children.length) {
+    catDiv.innerHTML = KB_CATS.map((c, i) =>
+      `<span class="filter-chip ${i===0?'active':''}" data-cat="${c}">${c}</span>`).join('');
+    catDiv.addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-chip')) {
+        catDiv.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+        e.target.classList.add('active');
+        renderKBList(e.target.dataset.cat, document.getElementById('kbSearch').value);
+      }
+    });
+  }
+  renderKBList(cat || document.querySelector('#kbCats .filter-chip.active')?.dataset.cat || '全部', '');
+}
+
+function renderKBList(cat, query) {
+  let items = data.knowledge;
+  if (cat && cat !== '全部') items = items.filter(k => k.cat === cat);
+  if (query) {
+    const q = query.toLowerCase();
+    items = items.filter(k =>
+      k.term.toLowerCase().includes(q) ||
+      k.en.toLowerCase().includes(q) ||
+      k.def.includes(query)
+    );
+  }
+  const div = document.getElementById('kbList');
+  if (!items.length) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">📖</div><p>未找到相关条目</p></div>';
+    return;
+  }
+  div.innerHTML = items.map(k => `
+    <div class="kb-item">
+      <div class="kb-term">${escHtml(k.term)}</div>
+      <div class="kb-en">${escHtml(k.en)}</div>
+      <div class="kb-def">${escHtml(k.def)}</div>
+      <div class="kb-cat">分类：${escHtml(k.cat)}</div>
+    </div>
+  `).join('');
+}
+
+function startVoiceSearch() {
+  startVoice((text) => {
+    document.getElementById('kbSearch').value = text;
+    renderKBList(document.querySelector('#kbCats .filter-chip.active')?.dataset.cat || '全部', text);
+  });
+}
+
+// ==================== 计算工具 ====================
+function calcVisitWindow() {
+  const base = document.getElementById('calcBaseDate').value;
+  const point = document.getElementById('calcVisitPoint').value.trim();
+  const win = parseInt(document.getElementById('calcWindow').value) || 3;
+  if (!base || !point) { alert('请填写基线日期和访视点'); return; }
+
+  const m = point.match(/(\d+(?:\.\d+)?)\s*(周|天|月|日)/);
+  if (!m) { alert('访视点格式：如 2周、30天、3月'); return; }
+  const num = parseFloat(m[1]);
+  const unit = m[2];
+  const baseDate = new Date(base + 'T00:00:00');
+  let target = new Date(baseDate);
+  let unitName = '';
+  if (unit === '周') { target.setDate(target.getDate() + Math.round(num * 7)); unitName = `${num}周`; }
+  else if (unit === '天' || unit === '日') { target.setDate(target.getDate() + num); unitName = `${num}天`; }
+  else if (unit === '月') { target.setMonth(target.getMonth() + num); unitName = `${num}个月`; }
+
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const start = new Date(target); start.setDate(start.getDate() - win);
+  const end = new Date(target); end.setDate(end.getDate() + win);
+
+  const res = document.getElementById('calcVisitResult');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">基线：${fmt(baseDate)} → ${unitName}访视</div>
+    <div class="big">窗口期：${fmt(start)} ～ ${fmt(end)}</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">目标访视日 ${fmt(target)}，允许 ±${win} 天</div>
+  `;
+}
+
+function calcDrugQty() {
+  const dose = parseFloat(document.getElementById('calcDose').value);
+  const days = parseInt(document.getElementById('calcDays').value);
+  const loss = parseFloat(document.getElementById('calcLoss').value) || 0;
+  if (!dose || !days) { alert('请填写每日剂量和用药天数'); return; }
+  const exact = dose * days;
+  const total = Math.ceil(exact * (1 + loss / 100));
+  const res = document.getElementById('calcDrugResult');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${dose} × ${days} 天 = ${exact}（含 ${loss}% 损耗）</div>
+    <div class="big">需发放：${total} 片（向上取整）</div>
+  `;
+}
+
+function calcDateDiff() {
+  const d1 = document.getElementById('calcDate1').value;
+  const d2 = document.getElementById('calcDate2').value;
+  if (!d1 || !d2) { alert('请选择两个日期'); return; }
+  const diff = Math.round((new Date(d2) - new Date(d1)) / 86400000);
+  const res = document.getElementById('calcDateResult');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="big">间隔 ${Math.abs(diff)} 天</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">约 ${(Math.abs(diff)/7).toFixed(1)} 周 / ${(Math.abs(diff)/30).toFixed(1)} 个月</div>
+  `;
+}
+
+// ==================== 反馈记录 ====================
+function renderFeedback() {
+  const div = document.getElementById('feedbackList');
+  if (!data.feedback.length) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p>暂无反馈记录</p><p style="font-size:12px;margin-top:4px;">工作中遇到问题就语音记下来</p></div>';
+    return;
+  }
+  div.innerHTML = [...data.feedback].reverse().map(f => `
+    <div class="feedback-item">
+      <div class="feedback-text">${escHtml(f.text)}</div>
+      <div class="feedback-meta">
+        <span>${escHtml(f.time)} ${f.via === 'voice' ? '· 语音' : ''}</span>
+        <span>
+          <button class="btn btn-xs ${f.status === 'open' ? 'btn-primary' : 'btn-secondary'}" onclick="toggleFbStatus('${f.id}')">${f.status === 'open' ? '待处理' : '已处理'}</button>
+          <button class="btn btn-xs btn-danger" onclick="deleteFb('${f.id}')">删除</button>
+        </span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleFbStatus(id) {
+  const f = data.feedback.find(x => x.id === id);
+  if (f) { f.status = f.status === 'open' ? 'done' : 'open'; save(); renderFeedback(); }
+}
+function deleteFb(id) {
+  if (!confirm('确定删除这条反馈？')) return;
+  data.feedback = data.feedback.filter(f => f.id !== id);
+  save(); renderFeedback();
+}
+
+function quickFeedback() {
+  showModal('记录问题反馈', `
+    <div class="form-group"><label>问题内容</label>
+      <textarea id="fFbText" rows="4" placeholder="记录遇到的问题、疑问、需要确认的事项..."></textarea>
+    </div>
+    <div style="text-align:center;">
+      <button type="button" class="btn btn-voice" id="fFbVoice" onclick="voiceFill('fFbText', this)">🎙 语音输入</button>
+    </div>
+  `, () => {
+    const text = document.getElementById('fFbText').value.trim();
+    if (!text) { alert('请记录内容'); return; }
+    data.feedback.push({ id: genId(), text, time: nowDateTime(), status: 'open', via: 'text' });
+    save(); closeModal(); renderFeedback();
+  });
+}
+
+// ==================== 语音识别 ====================
+let recognition = null;
+let activeVoiceTarget = null;
+let activeVoiceBtn = null;
+
+function initRecognition() {
+  if (recognition) return recognition;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  recognition = new SR();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.onresult = (e) => {
+    let finalText = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    if (activeVoiceTarget) {
+      activeVoiceTarget.value = (finalText || interim).trim();
+    }
+  };
+  recognition.onend = () => {
+    if (activeVoiceBtn) {
+      activeVoiceBtn.classList.remove('recording');
+      activeVoiceBtn.textContent = '🎙';
+    }
+    document.getElementById('recordingBar').classList.remove('active');
+    activeVoiceTarget = null;
+    activeVoiceBtn = null;
+  };
+  recognition.onerror = (e) => {
+    toast('语音识别失败：' + e.error);
+  };
+  return recognition;
+}
+
+function startVoice(callback) {
+  const rec = initRecognition();
+  if (!rec) { toast('当前浏览器不支持语音识别，请用 Chrome/Edge'); return; }
+  if (activeVoiceTarget) { // 正在录音，停止
+    rec.stop();
+    return;
+  }
+  // 回调模式
+  rec.onresult = (e) => {
+    let text = '';
+    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+    callback(text.trim());
+  };
+  rec.onend = () => { document.getElementById('recordingBar').classList.remove('active'); };
+  document.getElementById('recordingBar').classList.add('active');
+  try { rec.start(); } catch(e) {}
+}
+
+function voiceFill(inputId, btn) {
+  const rec = initRecognition();
+  if (!rec) { toast('当前浏览器不支持语音识别，请用 Chrome/Edge'); return; }
+  if (activeVoiceTarget) { rec.stop(); return; }
+  const input = document.getElementById(inputId);
+  activeVoiceTarget = input;
+  activeVoiceBtn = btn;
+  btn.classList.add('recording');
+  btn.textContent = '● 停止';
+  document.getElementById('recordingBar').classList.add('active');
+  rec.onresult = (e) => {
+    let text = '';
+    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+    input.value = text.trim();
+  };
+  try { rec.start(); } catch(e) {}
+}
+
+// ==================== 模态框 ====================
+function showModal(title, bodyHtml, onSave) {
+  document.getElementById('modalContainer').innerHTML = `
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <h3>${title}</h3>
+        ${bodyHtml}
+        <div class="form-actions">
+          <button class="btn btn-secondary" id="modalCancel">取消</button>
+          <button class="btn btn-primary" id="modalSave">保存</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalOverlay').addEventListener('click', (e) => { if (e.target.id === 'modalOverlay') closeModal(); });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalSave').addEventListener('click', onSave);
+}
+function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+// ==================== Toast ====================
+function toast(msg) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:20px;font-size:13px;z-index:999;pointer-events:none;';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2000);
+}
+
+// ==================== 提醒 ====================
+let notified = new Set();
+function checkReminders() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const t = today(), tm = nowTime();
+  data.plans.filter(p => p.date === t && !p.done && p.time === tm).forEach(p => {
+    const key = p.id + p.time;
+    if (notified.has(key)) return;
+    notified.add(key);
+    new Notification('CRC 提醒：' + p.title, {
+      body: p.content || '该执行这项任务了',
+      tag: p.id,
+      requireInteraction: true
+    });
+  });
+}
+setInterval(checkReminders, 30000);
+checkReminders();
+document.addEventListener('click', function req() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}, { once: false });
+
+// ==================== 扫描模块 ====================
+let scans = []; // {id, name, w, h, base, processed, redacts:[{x,y,w,h,mode}]}
+let ocrReady = false;
+
+function initOCR() {
+  // 预加载 OCR（静默，不阻塞界面）
+  if (typeof Tesseract !== 'undefined' && !ocrReady) {
+    Tesseract.createWorker('chi_sim', 1, {
+      workerPath: 'lib/worker.min.js',
+      corePath: 'lib/tesseract-core.wasm.js',
+      langPath: 'lib'
+    }).then(w => { window._ocrWorker = w; ocrReady = true; })
+      .catch(() => { console.log('OCR 预加载失败'); });
+  }
+}
+setTimeout(initOCR, 3000); // 页面加载3秒后预加载
+
+function captureImages() {
+  document.getElementById('scanInput').click();
+}
+
+document.getElementById('scanInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (!files.length) return;
+  toast('正在处理 ' + files.length + ' 张图片...');
+  processScanFiles(files);
+});
+
+function processScanFiles(files) {
+  let pending = files.length;
+  files.forEach((file, idx) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const { dataUrl, w, h } = detectCropEnhance(img);
+          scans.push({ id: genId(), name: file.name || ('图片' + (scans.length + 1)), w, h, base: dataUrl, processed: dataUrl, redacts: [] });
+        } catch(err) {
+          toast('第 ' + (idx+1) + ' 张处理失败');
+        }
+        if (--pending === 0) { renderScans(); toast('处理完成，可查看效果'); }
+      };
+      img.onerror = () => { if (--pending === 0) renderScans(); };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 自动识别文件区域 + 白底增强
+function detectCropEnhance(img) {
+  const maxDim = 1600;
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const idata = ctx.getImageData(0, 0, w, h);
+  const d = idata.data;
+
+  // 灰度化
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    gray[i] = 0.299 * d[i*4] + 0.587 * d[i*4+1] + 0.114 * d[i*4+2];
+  }
+
+  // 行列墨迹密度 → 找文档边界
+  const rowDark = new Float32Array(h), colDark = new Float32Array(w);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (gray[y*w+x] < 200) { rowDark[y]++; colDark[x]++; }
+    }
+  }
+  function findBounds(arr, len, minFrac) {
+    const thr = Math.max(2, len * minFrac);
+    const win = Math.max(1, Math.floor(len / 200));
+    const sm = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+      let s = 0, n = 0;
+      for (let j = Math.max(0, i-win); j <= Math.min(len-1, i+win); j++) { s += arr[j]; n++; }
+      sm[i] = s / n;
+    }
+    let start = 0, end = len - 1;
+    while (start < len && sm[start] < thr) start++;
+    while (end > start && sm[end] < thr) end--;
+    if (end <= start) return [0, len - 1];
+    return [Math.max(0, start - win*3), Math.min(len-1, end + win*3)];
+  }
+  const [y0, y1] = findBounds(rowDark, h, 0.004);
+  const [x0, x1] = findBounds(colDark, w, 0.004);
+  const mx = Math.round(w * 0.012), my = Math.round(h * 0.012);
+  const cx0 = Math.max(0, x0 - mx), cy0 = Math.max(0, y0 - my);
+  const cx1 = Math.min(w-1, x1 + mx), cy1 = Math.min(h-1, y1 + my);
+  const cw = Math.round(cx1 - cx0) + 1, ch = Math.round(cy1 - cy0) + 1;
+
+  // 自适应阈值：文字加深、底色发白
+  const S = Math.max(8, Math.floor(w / 35)); // 局部窗口
+  const integral = new Float64Array((w+1) * (h+1));
+  for (let y = 1; y <= h; y++) {
+    let rowSum = 0;
+    for (let x = 1; x <= w; x++) {
+      rowSum += gray[(y-1)*w + (x-1)];
+      integral[y*(w+1)+x] = integral[(y-1)*(w+1)+x] + rowSum;
+    }
+  }
+  const out = ctx.createImageData(cw, ch);
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const gx = cx0 + x, gy = cy0 + y;
+      const x1 = Math.max(0, gx - S), x2 = Math.min(w-1, gx + S);
+      const y1 = Math.max(0, gy - S), y2 = Math.min(h-1, gy + S);
+      const area = (x2-x1+1) * (y2-y1+1);
+      const sum = integral[(y2+1)*(w+1)+(x2+1)] - integral[y1*(w+1)+(x2+1)] - integral[(y2+1)*(w+1)+x1] + integral[y1*(w+1)+x1];
+      const mean = sum / area;
+      const v = gray[gy*w+gx];
+      const val = (v < mean - 12) ? Math.max(20, v - 70) : 255;
+      const oi = (y*cw + x) * 4;
+      out.data[oi] = out.data[oi+1] = out.data[oi+2] = val;
+      out.data[oi+3] = 255;
+    }
+  }
+  const oc = document.createElement('canvas');
+  oc.width = cw; oc.height = ch;
+  oc.getContext('2d').putImageData(out, 0, 0);
+  return { dataUrl: oc.toDataURL('image/jpeg', 0.92), w: cw, h: ch };
+}
+
+// 渲染扫描列表
+function renderScans() {
+  const div = document.getElementById('scanList');
+  document.getElementById('redactCard').style.display = scans.length ? 'block' : 'none';
+  document.getElementById('exportCard').style.display = scans.length ? 'block' : 'none';
+  if (!scans.length) {
+    div.innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div><p>还没有扫描的文件</p><p style="font-size:12px;margin-top:4px;">点击上方按钮拍摄或选择图片</p></div>';
+    return;
+  }
+  div.innerHTML = scans.map((s, i) => `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">第 ${i+1} 页 · ${escHtml(s.name)}${s.redacts.length ? ' · 已打码 ' + s.redacts.length + ' 处' : ''}</span>
+      </div>
+      <div style="text-align:center;margin:8px 0;position:relative;">
+        <img src="${s.processed}" style="max-width:100%;border-radius:6px;border:1px solid var(--border);" id="scanImg-${s.id}" onclick="openRedactEditor('${s.id}')">
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-sm btn-primary" onclick="openRedactEditor('${s.id}')">手动打码</button>
+        <button class="btn btn-sm btn-secondary" onclick="toggleOriginal('${s.id}', this)">看原图</button>
+        <button class="btn btn-sm btn-danger" onclick="removeScan('${s.id}')">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleOriginal(id, btn) {
+  const s = scans.find(x => x.id === id);
+  if (!s) return;
+  const img = document.getElementById('scanImg-' + id);
+  if (img.src === s.processed) { img.src = s.base; btn.textContent = '看效果'; }
+  else { img.src = s.processed; btn.textContent = '看原图'; }
+}
+
+function removeScan(id) {
+  scans = scans.filter(s => s.id !== id);
+  renderScans();
+}
+
+// 手动打码：在弹窗中拖动绘制矩形
+let editState = null;
+function openRedactEditor(id) {
+  const s = scans.find(x => x.id === id);
+  if (!s) return;
+  editState = { id, drawing: false, startX: 0, startY: 0 };
+  showModal('手动打码（拖动圈选区域）', `
+    <div style="position:relative;touch-action:none;user-select:none;" id="redactCanvasWrap">
+      <img src="${s.processed}" id="redactImg" style="max-width:100%;display:block;border-radius:6px;">
+      <canvas id="redactOverlay" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+    </div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;text-align:center;">按住并拖动圈选需要遮挡的区域，松开即打码</div>
+    <div class="form-actions" style="margin-top:10px;">
+      <button class="btn btn-secondary" id="modalCancel2" style="flex:1;">完成</button>
+    </div>
+  `, () => closeModal());
+
+  const img = document.getElementById('redactImg');
+  const wrap = document.getElementById('redactCanvasWrap');
+  const canvas = document.getElementById('redactOverlay');
+  const cancel2 = document.getElementById('modalCancel2');
+  cancel2.onclick = () => { closeModal(); };
+  // 隐藏原保存按钮
+  const modalSave = document.getElementById('modalSave');
+  if (modalSave) modalSave.style.display = 'none';
+
+  img.onload = () => {
+    canvas.width = img.clientWidth;
+    canvas.height = img.clientHeight;
+    drawRedactOverlay(canvas, s, img.clientWidth, img.clientHeight);
+  };
+  if (img.complete) {
+    canvas.width = img.clientWidth;
+    canvas.height = img.clientHeight;
+    drawRedactOverlay(canvas, s, img.clientWidth, img.clientHeight);
+  }
+
+  const getPos = (e) => {
+    const rect = img.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  };
+  const start = (e) => {
+    e.preventDefault();
+    editState.drawing = true;
+    const p = getPos(e);
+    editState.startX = p.x; editState.startY = p.y;
+  };
+  const move = (e) => {
+    if (!editState.drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    const ctx = canvas.getContext('2d');
+    drawRedactOverlay(canvas, s, img.clientWidth, img.clientHeight);
+    ctx.strokeStyle = '#d94a5d';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(editState.startX, editState.startY, p.x - editState.startX, p.y - editState.startY);
+  };
+  const end = (e) => {
+    if (!editState.drawing) return;
+    editState.drawing = false;
+    const p = getPos(e);
+    const iw = img.clientWidth, ih = img.clientHeight;
+    const rx = Math.min(editState.startX, p.x), ry = Math.min(editState.startY, p.y);
+    const rw = Math.abs(p.x - editState.startX), rh = Math.abs(p.y - editState.startY);
+    if (rw < 8 || rh < 8) return;
+    // 坐标映射到原始图像
+    const sx = rx / iw, sy = ry / ih, sw = rw / iw, sh = rh / ih;
+    s.redacts.push({ x: sx, y: sy, w: sw, h: sh, mode: 'block' });
+    applyRedacts(s);
+    drawRedactOverlay(canvas, s, img.clientWidth, img.clientHeight);
+    renderScans();
+  };
+  img.addEventListener('mousedown', start);
+  img.addEventListener('mousemove', move);
+  img.addEventListener('mouseup', end);
+  img.addEventListener('mouseleave', end);
+  img.addEventListener('touchstart', start, { passive: false });
+  img.addEventListener('touchmove', move, { passive: false });
+  img.addEventListener('touchend', end);
+}
+
+function drawRedactOverlay(canvas, scan, cw, ch) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, cw, ch);
+  scan.redacts.forEach(r => {
+    ctx.fillStyle = 'rgba(217,74,93,0.35)';
+    ctx.fillRect(r.x * cw, r.y * ch, r.w * cw, r.h * ch);
+  });
+}
+
+// 将打码区域应用到图片
+function applyRedacts(scan) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = scan.w; c.height = scan.h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    scan.redacts.forEach(r => {
+      const rx = r.x * scan.w, ry = r.y * scan.h, rw = r.w * scan.w, rh = r.h * scan.h;
+      if (r.mode === 'mosaic') {
+        const cell = Math.max(6, Math.round(scan.w / 120));
+        const snap = ctx.getImageData(Math.round(rx), Math.round(ry), Math.round(rw), Math.round(rh));
+        for (let gy = 0; gy < Math.round(rh); gy += cell) {
+          for (let gx = 0; gx < Math.round(rw); gx += cell) {
+            const si = ((gy * Math.round(rw)) + gx) * 4;
+            const sr = snap.data[si], sg = snap.data[si+1], sb = snap.data[si+2];
+            ctx.fillStyle = `rgb(${sr},${sg},${sb})`;
+            ctx.fillRect(rx + gx, ry + gy, Math.min(cell, rw - gx), Math.min(cell, rh - gy));
+          }
+        }
+      } else {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(rx, ry, rw, rh);
+      }
+    });
+    scan.processed = c.toDataURL('image/jpeg', 0.92);
+    const imgEl = document.getElementById('scanImg-' + scan.id);
+    if (imgEl) imgEl.src = scan.processed;
+  };
+  img.src = scan.base;
+}
+
+function undoRedact() {
+  const s = scans[scans.length - 1];
+  if (!s || !s.redacts.length) { toast('没有可撤销的打码'); return; }
+  s.redacts.pop();
+  applyRedacts(s);
+  renderScans();
+  toast('已撤销最后一处打码');
+}
+
+// 关键词打码（OCR）
+async function applyKeywordRedact(mode) {
+  const kwInput = document.getElementById('redactKeywords');
+  const kw = kwInput.value.trim();
+  if (!kw) { toast('请输入要遮挡的文字'); return; }
+  const keywords = kw.split(/[,，、;；\s]+/).filter(Boolean);
+  if (!scans.length) { toast('请先扫描图片'); return; }
+  if (typeof Tesseract === 'undefined') { toast('OCR 组件未加载'); return; }
+
+  toast('正在识别文字并定位，请稍候...');
+  try {
+    let worker = window._ocrWorker;
+    if (!worker) {
+      worker = await Tesseract.createWorker('chi_sim', 1, {
+        workerPath: 'lib/worker.min.js',
+        corePath: 'lib/tesseract-core.wasm.js',
+        langPath: 'lib'
+      });
+      window._ocrWorker = worker;
+      ocrReady = true;
+    }
+    let hit = 0;
+    for (const scan of scans) {
+      const img = new Image();
+      img.src = scan.base;
+      await new Promise(r => { if (img.complete) r(); else img.onload = r; });
+      const { data } = await worker.recognize(img);
+      for (const wd of data.words || []) {
+        if (keywords.some(k => wd.text.includes(k))) {
+          scan.redacts.push({
+            x: wd.bbox.x0 / img.width, y: wd.bbox.y0 / img.height,
+            w: (wd.bbox.x1 - wd.bbox.x0) / img.width,
+            h: (wd.bbox.y1 - wd.bbox.y0) / img.height,
+            mode
+          });
+          hit++;
+        }
+      }
+    }
+    if (!hit) { toast('未找到关键词，可尝试手动打码'); return; }
+    scans.forEach(s => applyRedacts(s));
+    renderScans();
+    toast('已遮挡 ' + hit + ' 处关键词');
+  } catch (e) {
+    toast('OCR 识别失败：' + (e.message || '未知错误'));
+  }
+}
+
+// 导出 PDF
+function exportPDF() {
+  if (!scans.length) { toast('请先扫描图片'); return; }
+  if (typeof window.jspdf === 'undefined') { toast('PDF 组件未加载'); return; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pw = 595.28, ph = 841.89, margin = 24;
+    scans.forEach((s, i) => {
+      if (i > 0) doc.addPage();
+      const availW = pw - margin * 2, availH = ph - margin * 2;
+      const ratio = s.h / s.w;
+      let iw = availW, ih = iw * ratio;
+      if (ih > availH) { ih = availH; iw = ih / ratio; }
+      const ox = (pw - iw) / 2, oy = (ph - ih) / 2;
+      doc.addImage(s.processed, 'JPEG', ox, oy, iw, ih);
+    });
+    const blob = doc.output('blob');
+    downloadBlob(blob, '扫描文档.pdf');
+    toast('PDF 已生成');
+  } catch (e) {
+    toast('生成失败：' + (e.message || '未知错误'));
+  }
+}
+
+// 导出 Word（WPS/Word 可打开的图片文档）
+function exportWord() {
+  if (!scans.length) { toast('请先扫描图片'); return; }
+  const imgs = scans.map(s => `<p style="page-break-after:always;text-align:center;"><img src="${s.processed}" style="max-width:100%;"></p>`).join('');
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>扫描文档</title></head><body>${imgs}</body></html>`;
+  const blob = new Blob(['﻿' + html], { type: 'application/msword' });
+  downloadBlob(blob, '扫描文档.doc');
+  toast('Word 已生成（可用 WPS/Word 打开）');
+}
+
+// 分享（优先调起系统分享，可选微信）
+async function shareDoc() {
+  if (!scans.length) { toast('请先扫描图片'); return; }
+  let blob = null;
+  try {
+    if (typeof window.jspdf !== 'undefined') {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pw = 595.28, ph = 841.89, margin = 24;
+      scans.forEach((s, i) => {
+        if (i > 0) doc.addPage();
+        const availW = pw - margin * 2, availH = ph - margin * 2;
+        const ratio = s.h / s.w;
+        let iw = availW, ih = iw * ratio;
+        if (ih > availH) { ih = availH; iw = ih / ratio; }
+        doc.addImage(s.processed, 'JPEG', (pw-iw)/2, (ph-ih)/2, iw, ih);
+      });
+      blob = doc.output('blob');
+    } else {
+      const resp = await fetch(scans[0].processed);
+      blob = await resp.blob();
+    }
+    const file = new File([blob], '扫描文档.pdf', { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: '扫描文档' });
+      toast('已调起分享面板');
+    } else {
+      downloadBlob(blob, '扫描文档.pdf');
+      toast('已下载文件，可打开微信手动发送');
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // 用户取消
+    downloadBlob(blob, '扫描文档.pdf');
+    toast('已下载文件，可打开微信手动发送');
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+// ==================== 事件绑定 ====================
+document.getElementById('fabBtn').addEventListener('click', () => showPlanForm());
+
+document.querySelector('#page-plans .filter-row')?.addEventListener('click', (e) => {
+  if (e.target.classList.contains('filter-chip')) {
+    document.querySelectorAll('#page-plans .filter-chip').forEach(c => c.classList.remove('active'));
+    e.target.classList.add('active');
+    renderPlans(e.target.dataset.filter);
+  }
+});
+
+document.getElementById('drugSearch').addEventListener('input', (e) => renderDrugs(e.target.value));
+document.getElementById('kbSearch').addEventListener('input', (e) =>
+  renderKBList(document.querySelector('#kbCats .filter-chip.active')?.dataset.cat || '全部', e.target.value));
+
+// ==================== Service Worker ====================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ==================== 初始化 ====================
+render('dashboard');
+render('drugs');
+render('feedback');
+console.log('CRC 助手已就绪');
+console.log('数据保存在本地，可离线使用');
+</script>
+</body>
+</html>
